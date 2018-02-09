@@ -4,10 +4,12 @@ import numpy as np
 import glob
 import os
 
-def read_csv_files(files, sort=False, **kwargs):
+def read_csv_files(files, sort='value.time', index='value.time', **kwargs):
     df = pd.concat(pd.read_csv(f, **kwargs) for f in files)
     if sort:
         df = df.sort_values(by=sort)
+    if index:
+        df = df.set_index(index)
     return df
 
 def read_csv_folder(path, extension='.csv', sort=False, **kwargs):
@@ -18,23 +20,22 @@ def parse_date(timestamp):
     return pd.Timestamp.fromtimestamp(float(timestamp))
 
 def read_csv_folder_type(path, extension='.csv', data_type='battery_level', **kwargs):
-    argu = {'battery_level': {'parse_dates': ['value.time', 'value.timeReceived'],
-                              'date_parser': parse_date,
-                              'dtype': {'value.batteryLevel': np.float64,
+    shared_argu = {'parse_dates': ['value.time', 'value.timeReceived'],
+                   'date_parser': parse_date,
+                   'sort': ['value.time']}
+
+    argu = {'battery_level': {'dtype': {'value.batteryLevel': np.float64,
                                    'value.isPlugged': np.bool_,
                                    'value.status': str },
                               'usecols': [3, 4, 5, 6, 7],
-                              'sort': ['value.time'],
                              },
-            'acceleration':  {'parse_dates': ['value.time', 'value.timeReceived'],
-                              'date_parser': parse_date,
-                              'dtype': {'value.x': np.float64,
+            'acceleration':  {'dtype': {'value.x': np.float64,
                                         'value.y': np.float64,
                                         'value.z': np.float64},
                               'usecols': [3, 4, 5, 6, 7],
-                              'sort': ['value.time'],
-                              }
+                             }
     }[data_type]
+    argu.update(shared_argu)
 
     return read_csv_folder(path, extension, **argu, **kwargs)
 
