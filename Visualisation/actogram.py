@@ -7,11 +7,11 @@ def plot(dataframe, datacol='value.x'):
                                 dataframe.index.day])
     for labels, group in groups:
         ax = plt.subplot(len(groups), 1, z)
-        group.plot(y=datacol, ax=ax, kind='bar', color='k')
+        group.plot(y=datacol, ax=ax, color='k')
         plt.xticks(visible=False)
         plt.yticks(visible=False)
         plt.subplots_adjust(hspace=0)
-        plt.ylim(0, 0.5)
+        plt.ylim(0, 3)
         ax.legend_.remove()
         z = z + 1
     plt.show()
