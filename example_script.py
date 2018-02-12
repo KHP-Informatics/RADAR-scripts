@@ -5,9 +5,12 @@ matplotlib.use('Agg')
 import Visualisation.actogram
 import sys
 
-data_folder = '/home/chronos/user/Documents/Data/45a9af3a-8fde-484d-9d2f-082d716facfb/android_phone_acceleration'
+if len(sys.argv) > 1:
+    data_folder = sys.argv[1]
+else:
+    data_folder = '/path/to/data'
 
-accel_data = Util.load_csvs.read_csv_folder_type(data_folder, data_type='acceleration')
+accel_data = Util.load_csvs.read_csv_folder_type(data_folder, data_type='android_acceleration')
 accel_data['magnitude'] = accel_data[['value.x', 'value.y',
                                       'value.z']].pow(2).sum(axis=1).pow(1/2)
 accel_data['magnitude'] = accel_data['magnitude'] - 1
