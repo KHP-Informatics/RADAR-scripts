@@ -6,8 +6,9 @@
 import ftplib as FTP
 import datetime
 import os
+import re
 
-def parse_folders(ftp, folder, start_date, end_date, root_path, overwrite):
+def parse_folders(ftp, folder, start_date, end_date, root_path, overwrite, exclude_pattern=None):
     try:
         ftp.cwd(folder)
     except FTP.error_perm:
@@ -25,14 +26,14 @@ def parse_folders(ftp, folder, start_date, end_date, root_path, overwrite):
             if start_date < file_time and file_time < end_date:
                 files.append(f[0])
     if files:
-        retrieve_files(ftp, files, start_date, end_date, root_path, overwrite)
+        retrieve_files(ftp, files, start_date, end_date, root_path, overwrite, exclude_pattern)
         
     for cfolder in child_folders:
-        parse_folders(ftp, cfolder, start_date, end_date, root_path, overwrite)
+        parse_folders(ftp, cfolder, start_date, end_date, root_path, overwrite, exclude_pattern)
     ftp.cwd('..')
     
 
-def retrieve_files(ftp, files, start_date, end_date, root_path, overwrite):
+def retrieve_files(ftp, files, start_date, end_date, root_path, overwrite, exclude_pattern=None):
     def retrieve_file(ftp, filename, local_dir):
         local_file = os.path.join(local_dir, filename)
         if os.path.isfile(local_file) and not overwrite:
@@ -49,6 +50,9 @@ def retrieve_files(ftp, files, start_date, end_date, root_path, overwrite):
     local_dir = os.path.join(args.outpath, os.path.relpath(ftp.pwd(), args.path))
     os.makedirs(local_dir, exist_ok=True)
     for f in files:
+        if exclude_pattern:
+            if len(exclude_pattern.findall(f)) > 0:
+                pass
         retrieve_file(ftp, f, local_dir)
 
 def ftp_download(folders,
@@ -59,7 +63,8 @@ def ftp_download(folders,
                  end_date='2200-01-01',
                  date_format='%Y-%m-%d',
                  path='/RADAR-CNS/HDFS_CSV/output/',
-                 overwrite=False):
+                 overwrite=False,
+                 exclude_pattern=None):
     ftp = FTP.FTP(ip)
     try:
         ftp.login(user, password)
@@ -75,7 +80,7 @@ def ftp_download(folders,
     start_datetime = datetime.datetime.strptime(start_date, date_format)
     end_datetime = datetime.datetime.strptime(end_date, date_format)
     for folder in folders:
-        parse_folders(ftp, folder, start_datetime, end_datetime, path, overwrite)
+        parse_folders(ftp, folder, start_datetime, end_datetime, path, overwrite, exclude_pattern)
     ftp.close()
    
 
@@ -112,6 +117,7 @@ if __name__ == "__main__":
                         action='store_true')
     parser.add_argument('-o', '--outpath', help='Parent path to save files to',
                         default='.')
+    parser.add_argument('-e', '--exclude', help='Regex pattern to exclude', default=None)
 
 args = parser.parse_args()
 if args.folder:
@@ -119,8 +125,11 @@ if args.folder:
 else:
     folders = args.folders.read().split()
 password = getpass.getpass()
+if args.exclude:
+    args.exclude = re.compile(args.exclude)
+
 ftp_download(folders=folders, ip=args.hostname, user=args.user,
              password=password, start_date=args.startdate,
              end_date=args.enddate, date_format=args.dateformat,
-             path=args.path, overwrite=args.overwrite)
+             path=args.path, overwrite=args.overwrite, exclude_pattern=args.exclude)
 
