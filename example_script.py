@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import Util.load_csvs
+import Util.read_csvs
 import matplotlib
 matplotlib.use('Agg')
 import Visualisation.actogram
@@ -10,7 +10,7 @@ if len(sys.argv) > 1:
 else:
     data_folder = '/path/to/data'
 
-accel_data = Util.load_csvs.read_csv_folder_type(data_folder, data_type='android_acceleration')
+accel_data = Util.read_csvs.read_csv_folder_type(data_folder, data_type='android_acceleration')
 accel_data['magnitude'] = accel_data[['value.x', 'value.y',
                                       'value.z']].pow(2).sum(axis=1).pow(1/2)
 accel_data['magnitude'] = accel_data['magnitude'] - 1
