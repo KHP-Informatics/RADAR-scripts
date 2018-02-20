@@ -2,60 +2,78 @@
 from avro import schema
 import pandas as pd
 import numpy as np
+import glob, os
 from util._schema_header import *
 
 class RadarSchema():
-    def __init__(self, json):
+    """
+    A class for use with RADAR-base key-value pair schemas. Initialise with a
+    json string representation of the schema.
+    """
+
+    INDEX = 'value.time'
+    SORT = 'value.time'
+    TIME_COLS = ['value.time', 'value.timeReceived']
+    CSV_EXT = '.csv'
+    usekeys = True
+
+    class _FakeSchema(object):
+        pass
+
+    def __init__(self, json, values=False):
         """
         This class must be initiated with a json string representation of a
-        RADAR-base schema
+        RADAR-base schema.
+        It is possible to provide a values only schema by setting values=True,
+        but it will not load key column data.
         """
-        self.schema = schema.Parse(json)
+        if values:
+            self.schema = self._FakeSchema()
+            self.schema.fields = [self._FakeSchema()]
+            self.schema.fields[0].type = schema.Parse(json)
+            self.schema.fields[0].name = 'value'
+        else:
+            self.schema = schema.Parse(json)
 
-    def get_col_info(self, func=None, keys=(), parent_name=False):
+    def get_col_info(self, func=None, *args):
         """
-        Gets field info from field[].type.field[key] where keys are given as
-        an argument.
-        To get values from child keys, give multiple keys. For example,
-        get_col_info(keys=['name']) returns the name of a data array,
-        get_col_info(keys=['type', 'type']) returns the type because it is nested.
-        Alternatively, a custom function may be supplied by the func argument.
-        This will append the result of the function on the column.
+        Values from schema columns and their parent fields can be retrieved by
+        a given function.
+        """
+        return [func(col, field, *args) for field in self.schema.fields
+                                        for col in field.type.fields]
+
+    def get_col_info_by_key(self, *keys):
+        """
+        Gets values from a schema column by its dict key. Multiple keys can be
+        supplied for nested values.
         """
         def get_info_rec(col, par, *keys):
             if len(keys) > 1:
-                return get_info_rec(col.props[keys[0]], *keys[1:])
+                return get_info_rec(col.props[keys[0]], par, *keys[1:])
             else:
                 return col.props[keys[0]]
-        if not func:
-            func = get_info_rec
-
-        if parent_name:
-            return [field.name + '.' + func(col, *keys)
-                    for field in self.schema.fields
-                    for col in field.type.fields]
-        else:
-            return [func(col, field, *keys) for field in self.schema.fields
-                                            for col in field.type.fields]
+        return self.get_col_info(get_info_rec, *keys)
 
     def get_col_names(self,):
         """
         Returns an array of column names for the csv created by the schema
         """
-        return self.get_col_info(keys=['name'], parent_name=True)
+        def get_name(col, parent):
+            return parent.name + '.' + col.name
+        return self.get_col_info(func=get_name)
 
     def get_col_types(self,):
         """
         Returns an array of strings naming Avro datatypes for each csv column
         created by the schema
         """
-        def get_type(col):
+        def get_type(col, *args):
             typeval = col.type.type
             if typeval == 'union':
                 return [sch.type for sch in col.type.schemas]
             else:
                 return typeval
-
         return self.get_col_info(func=get_type)
 
     def get_col_numpy_types(self):
@@ -74,42 +92,31 @@ class RadarSchema():
                 return AVRO_NUMPY_TYPES[data_type]
         return [convert_type(x) for x in self.get_col_types()]
 
-    def load_csv(self, csv_file_path, **kwargs):
-        argdict = self.get_schema_kwargs()
+    def load_csvs(self, csv_filepath_list, **kwargs):
+        argdict = self._get_schema_kwargs()
         if kwargs:
             argdict = argdict.update(kwargs)
-        df = pd.read_csv(csv_file_path, **argdict)
-        if self.sort:
-            df = df.sort_values(by=self.sort)
-        if self.index:
-            df = df.set_index(self.index)
-        return df
-
-    def load_multiple_csv(self, csv_filepath_array, **kwargs):
-        argdict = self.get_schema_kwargs()
-        if kwargs:
-            argdict = argdict.update(kwargs)
-        df = pd.concat(pd.read_csv(f, **argdict) for f in csv_filepath_array)
-        if self.sort:
-            df = df.sort_values(by=self.sort)
-        if self.index:
-            df = df.set_index(self.index)
+        df = pd.concat(pd.read_csv(f, **argdict) for f in csv_filepath_list)
+        if self.SORT:
+            df = df.sort_values(by=self.SORT)
+        if self.INDEX:
+            df = df.set_index(self.INDEX)
         return df
 
     def load_csv_folder(self, folder_path, **kwargs):
-        files = glob.glob(os.path.join(path, '*', + extension))
+        files = glob.glob(os.path.join(folder_path, '*' + self.CSV_EXT))
         if files:
-            return self.load_multiple_csv(files, **kwargs)
+            return self.load_csvs(files, **kwargs)
         else:
             raise IOError('No CSV files found in given path')
 
-    def get_schema_kwargs(self):
+    def _get_schema_kwargs(self):
         # Some of this function (ignoring keys, etc) should be moved elsewhere
         argdict = {}
         cols = self.get_col_names()
         argdict['dtype'] = {col:dtype for col, dtype in
                             zip(cols, self.get_col_numpy_types())
-                            if col not in self.time_columns}
+                            if col not in self.TIME_COLS}
         if not self.usekeys:
             argdict['usecols'] = [k for k in cols if k[0:4] != 'key.']
             delkeys = [k for k in cols if k[0:4] == 'key.']
@@ -119,9 +126,9 @@ class RadarSchema():
         else:
             argdict['usecols'] = cols
 
-        if self.time_columns:
+        if self.TIME_COLS:
             argdict['parse_dates'] = [col for col in cols if col in
-                                      self.time_columns]
+                                      self.TIME_COLS]
             argdict['date_parser'] = self._parse_date
 
         return argdict
@@ -132,8 +139,3 @@ class RadarSchema():
     def _parse_date(self, timestamp):
         return pd.Timestamp.fromtimestamp(float(timestamp))
 
-    # infer_time_type = True;
-    time_columns = ['value.time', 'value.timeReceived'];
-    sort = 'value.time';
-    index = 'value.time';
-    usekeys = True;
