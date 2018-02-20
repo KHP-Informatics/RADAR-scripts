@@ -49,10 +49,8 @@ class RadarSchema():
         supplied for nested values.
         """
         def get_info_rec(col, par, *keys):
-            if len(keys) > 1:
-                return get_info_rec(col.props[keys[0]], par, *keys[1:])
-            else:
-                return col.props[keys[0]]
+            return col.props[keys[0]] if len(keys) == 1 else \
+                   get_info_rec(col.props[keys[0]], par, *keys[1:])
         return self.get_col_info(get_info_rec, *keys)
 
     def get_col_names(self,):
@@ -73,6 +71,7 @@ class RadarSchema():
             if typeval == 'union':
                 return [sch.type for sch in col.type.schemas]
             else:
+                # Should check for enum/other complex types as well
                 return typeval
         return self.get_col_info(func=get_type)
 
@@ -82,12 +81,13 @@ class RadarSchema():
         the schema
         """
         def convert_type(data_type):
+            # numpy arrays don't want union types.
             if isinstance(data_type, list):
                 dtype = [convert_type(x) for x in data_type if x != 'null']
                 if len(dtype) == 1:
                     return dtype[0]
                 else:
-                    return dtype
+                    return np.object
             else:
                 return AVRO_NUMPY_TYPES[data_type]
         return [convert_type(x) for x in self.get_col_types()]
