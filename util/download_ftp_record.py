@@ -27,11 +27,11 @@ def parse_folders(ftp, folder, start_date, end_date, root_path, overwrite, exclu
                 files.append(f[0])
     if files:
         retrieve_files(ftp, files, start_date, end_date, root_path, overwrite, exclude_pattern)
-        
+
     for cfolder in child_folders:
         parse_folders(ftp, cfolder, start_date, end_date, root_path, overwrite, exclude_pattern)
     ftp.cwd('..')
-    
+
 
 def retrieve_files(ftp, files, start_date, end_date, root_path, overwrite, exclude_pattern=None):
     def retrieve_file(ftp, filename, local_dir):
@@ -46,7 +46,7 @@ def retrieve_files(ftp, files, start_date, end_date, root_path, overwrite, exclu
                     print('User does not have permission to read file:',
                           ftp.pwd() + '/' + filename)
                     os.unlink(f.name)
-        
+
     local_dir = os.path.join(args.outpath, os.path.relpath(ftp.pwd(), args.path))
     os.makedirs(local_dir, exist_ok=True)
     for f in files:
@@ -71,7 +71,7 @@ def ftp_download(folders,
     except FTP.error_perm:
         print('Incorrect login')
         raise
-    
+
     try:
         ftp.cwd(path)
     except FTP.error_perm:
@@ -82,7 +82,6 @@ def ftp_download(folders,
     for folder in folders:
         parse_folders(ftp, folder, start_datetime, end_datetime, path, overwrite, exclude_pattern)
     ftp.close()
-   
 
 # Main
 if __name__ == "__main__":
