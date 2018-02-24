@@ -35,7 +35,7 @@ class RadarSchema():
         else:
             self.schema = schema.Parse(json)
 
-    def get_col_info(self, func=None, *args):
+    def get_col_info(self, func=lambda x:x, *args):
         """
         Values from schema columns and their parent fields can be retrieved by
         a given function.
