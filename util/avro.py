@@ -2,7 +2,7 @@
 from avro import schema
 import pandas as pd
 import numpy as np
-import glob, os
+import glob, os, json
 from util._schema_header import *
 
 class RadarSchema():
@@ -20,12 +20,21 @@ class RadarSchema():
     class _FakeSchema(object):
         pass
 
-    def __init__(self, json, values=False):
+    def __init__(self, schema_json=None, key_json=None, value_json=None):
         """
-        This class must be initiated with a json string representation of a
+        This class is initiated with a json string representation of a
         RADAR-base schema.
-        It is possible to provide a values only schema by setting values=True,
-        but it will not load key column data.
+        Parameters
+        __________
+        schema_json: string (json)
+            A json string representation of a key-value pair RADAR-base schema
+        key_json: string (json)
+            A json string representation of a key RADAR-base schema
+        value_json: string (json)
+            A json string representation of a value RADAR-base schema
+        __________
+        Either schema_json or value_json must be specified. key_json may also
+        be given alongside value_json.
         """
         if values:
             self.schema = self._FakeSchema()
@@ -34,6 +43,23 @@ class RadarSchema():
             self.schema.fields[0].name = 'value'
         else:
             self.schema = schema.Parse(json)
+
+        if schema_json:
+            self.schema = schema.Parse(schema_json)
+        elif value_json:
+            if key_json:
+                self.schema = schema.Parse(combine_key_value_schemas(key_json,
+                                                                     value_json))
+            else:
+                self.schema = self._FakeSchema()
+                self.schema.fields = [self._FakeSchema()]
+                self.schema.fields[0].type = schema.Parse(value_json)
+                self.schema.fields[0].name = 'value'
+        else:
+            raise ValueError('Please provide json representation of a'
+                             'key-value schema or a value schema with or'
+                             'without a seperate key schema.')
+
 
     def get_col_info(self, func=lambda x:x, *args):
         """
@@ -139,3 +165,35 @@ class RadarSchema():
     def _parse_date(self, timestamp):
         return pd.Timestamp.fromtimestamp(float(timestamp))
 
+def combine_key_value_schemas(key_schema, value_schema):
+    """ Combined a RADAR key schema and a RADAR value schema.
+    Needs cleaning
+    Parameters
+    __________
+    key_schema: string (json)
+        The json string representation of a RADAR key schema. By default
+        observation_key
+    value_schema: string (json)
+        The json string representation of a RADAR value schema.
+    """
+    key_dict = json.loads(key_schema)
+    value_dict = json.loads(value_schema)
+    combined_schema = \
+            '{\n' + \
+            '  "type" : "record",\n' + \
+            '  "name" : "' + value_dict['name'] + '",\n' + \
+            '  "namespace" : "' + key_dict['namespace'] + '_' + \
+                value_dict['namespace'] + '",\n' + \
+            '  "doc" : "combined key-value record",\n' + \
+            '  "fields"  : [ {\n' + \
+            '      "name" : "key",\n' + \
+            '      "type" : ' + key_schema + ',\n' + \
+            '      "doc" : "Key of a Kafka SinkRecord"\n' + \
+            '    }, {\n' + \
+            '      "name" : "value",\n' + \
+            '      "type" : ' + value_schema + ',\n' + \
+            '      "doc" : "Value of a Kafka SinkRecord"\n' + \
+            '  } ]\n' + \
+            '}'
+
+    return combined_schema
