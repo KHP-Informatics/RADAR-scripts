@@ -1,5 +1,5 @@
 import numpy as np
-
+import h5py
 PRIMITIVE_TYPES = (
     'null',
     'boolean',
@@ -68,4 +68,11 @@ AVRO_NUMPY_TYPES = {
     'double': np.float64,
     'bytes': np.bytes_,
     'string': np.object,
+}
+
+PD_HDF_TYPES = {
+    'object': h5py.special_dtype(vlen=str),
+    'int64': 'i8',
+    'datetime64[ns]': 'i8',
+    'float32': 'f',
 }
