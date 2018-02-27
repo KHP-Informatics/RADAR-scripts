@@ -36,14 +36,6 @@ class RadarSchema():
         Either schema_json or value_json must be specified. key_json may also
         be given alongside value_json.
         """
-        if values:
-            self.schema = self._FakeSchema()
-            self.schema.fields = [self._FakeSchema()]
-            self.schema.fields[0].type = schema.Parse(json)
-            self.schema.fields[0].name = 'value'
-        else:
-            self.schema = schema.Parse(json)
-
         if schema_json:
             self.schema = schema.Parse(schema_json)
         elif value_json:

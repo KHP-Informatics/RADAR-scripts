@@ -4,12 +4,21 @@ import numpy as np
 import h5py
 from util.common import PD_HDF_TYPES
 
+STATIC_LEN_STR_FIELDS = (
+    'key.projectId',
+    'key.userId',
+    'key.sourceId',
+)
+
 def hdf_compat_dtypes(data):
     if 'datetime64' in str(data.dtype):
-        d = data.astype('int64')
-        return d
+        d = data.astype(np.int64)
+    elif 'object' in str(data.dtype):
+        # if data.name in STATIC_LEN_STR_FIELDS:
+        d = data.astype(np.string_)
     else:
         return data
+    return d
 
 def append_hdf5(dataframe, hdf5, user_id, schema=None, source=None):
     if not (schema or source):
