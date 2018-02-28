@@ -68,6 +68,7 @@ AVRO_NUMPY_TYPES = {
     'double': np.float64,
     'bytes': np.bytes_,
     'string': np.object,
+    'enum': np.object,
 }
 
 PD_HDF_TYPES = {
