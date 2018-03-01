@@ -29,7 +29,10 @@ def uklfr_subject_ext_csv(csv):
     def determine_events(labels):
         def nearest_end(start, ends, cutoff=600):
             cutoff = np.timedelta64(cutoff, 's')
-            nearest_end = ends[(ends > start).argmax()]
+            try: 
+                nearest_end = ends[(ends > start).argmax()]
+            except ValueError:
+                return NAT
             if not nearest_end:
                 return NAT
             elif nearest_end - start < cutoff:
