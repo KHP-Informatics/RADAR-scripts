@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import tables
+from util.common import AVRO_HDF_TYPE
 _FILTER = tables.Filters(complib='blosc:snappy', complevel=1, shuffle=True)
 
 def open_project(filename, mode='r', title='', root_uep='/',
@@ -46,6 +47,8 @@ def _descr_from_schema(radar_schema):
     classdict = {}
     names = radar_schema.get_col_names()
     dtypes = radar_schema.get_col_types()
+    for name, dtype in zip(names, dtypes):
+        classdict[name] = AVRO_HDF_TYPE[dtype]
     return tables.Description(classdict)
 
 class ProjectFile(tables.File):
