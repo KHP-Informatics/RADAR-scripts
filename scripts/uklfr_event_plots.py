@@ -5,8 +5,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import util.avro, util.parsers, visualise.general
 import glob
-SCHEMA_DIR = '/Users/callum/RADAR/RADAR-Schemas/commons/passive/empatica/'
-UKLFR_DIR = '/Users/callum/RADAR/Data/Epilepsy/UKLFR/'
+SCHEMA_DIR = ''
+UKLFR_DIR = ''
 
 with open(SCHEMA_DIR+'empatica_e4_acceleration.avsc', 'r') as f:
     accel_schema = util.avro.RadarSchema(value_json=f.read())

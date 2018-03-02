@@ -2,7 +2,7 @@ import util.parsers
 import glob
 import numpy as np
 
-UKFLR_DIR = '/Users/callum/RADAR/Data/Epilepsy/UKLFR'
+UKFLR_DIR = ''
 
 for csv in glob.glob(UKFLR_DIR + '/*/*_ext.csv'):
     folder = '/'.join(csv.split('/')[:-1])
