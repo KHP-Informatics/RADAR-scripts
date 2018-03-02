@@ -4,7 +4,7 @@ import numpy as np
 import glob
 import os
 
-def read_csv_files(files, sort='value.time', index='value.time', **kwargs):
+def read_files(files, sort='value.time', index='value.time', **kwargs):
     df = pd.concat(pd.read_csv(f, **kwargs) for f in files)
     if sort:
         df = df.sort_values(by=sort)
@@ -12,7 +12,7 @@ def read_csv_files(files, sort='value.time', index='value.time', **kwargs):
         df = df.set_index(index)
     return df
 
-def read_csv_folder(path, extension='.csv', sort=False, **kwargs):
+def read_folder(path, extension='.csv', sort=False, **kwargs):
     files = glob.glob(os.path.join(path, '*' + extension))
     if files:
         return read_csv_files(files, sort, **kwargs)
