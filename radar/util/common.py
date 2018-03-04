@@ -77,3 +77,7 @@ PD_HDF_TYPES = {
     'datetime64[ns]': 'i8',
     'float32': 'f',
 }
+
+AVRO_HDF_TYPE = {
+    'asd':1
+}
