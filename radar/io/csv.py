@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 import pandas as pd
 import numpy as np
-import glob
-import os
+import glob, os, sys
+import csv
+
+def write_csv(arr, fname='', fieldnames='', **kwargs):
+    f = open(fname, 'w') if fname else sys.stdout
+    writer = csv.writer(f, **kwargs)
+    if fieldnames:
+        writer.writerow(fieldnames)
+    for row in arr:
+        writer.writerow(row)
+    if f is not sys.stdout:
+        f.close()
 
 def read_files(files, sort='value.time', index='value.time', **kwargs):
     df = pd.concat(pd.read_csv(f, **kwargs) for f in files)
