@@ -3,7 +3,7 @@ from avro import schema
 import pandas as pd
 import numpy as np
 import glob, os, json
-from util.common import *
+from radar.util.common import *
 
 class RadarSchema():
     """

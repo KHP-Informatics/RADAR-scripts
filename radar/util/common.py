@@ -1,5 +1,6 @@
 import numpy as np
 import h5py
+
 PRIMITIVE_TYPES = (
     'null',
     'boolean',
@@ -79,5 +80,13 @@ PD_HDF_TYPES = {
 }
 
 AVRO_HDF_TYPE = {
-    'asd':1
+    'null': 1,
+    'boolean': 1,
+    'int': 1,
+    'long': 1,
+    'float': 1,
+    'double': 1,
+    'bytes': 1,
+    'string': 1,
+    'enum': 1,
 }

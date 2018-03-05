@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import tables
-from util.common import AVRO_HDF_TYPE
+import numpy as np
+from radar.util.common import AVRO_HDF_TYPE
 _FILTER = tables.Filters(complib='blosc:snappy', complevel=1, shuffle=True)
 
 def open_project(filename, mode='r', title='', root_uep='/',
@@ -62,7 +63,8 @@ class ProjectFile(tables.File):
 
     def __init__(self, filename, mode='r', title='', root_uep='/',
                  filters=_FILTER, subprojects=[], **kwargs):
-        tables.File().__init__(filename, mode, title, root_uep, filters,
+        super(ProjectFile, self).__init__(filename=filename, mode=mode, title=title,
+                               root_uep=root_uep, filters=filters,
                                **kwargs)
         self.subprojects = subprojects
 
@@ -87,9 +89,9 @@ class ProjectFile(tables.File):
             else:
                 raise TypeError('Invalid obj type %r' %obj)
             descr, _ = tables.description.descr_from_dtype(obj.dtype)
-        if (description is not None and
-            tables.description.dtype_from_descr(description) != obj.dtype):
-            raise TypeError('The description parameter is not consistent ',
+            if (description is not None and
+                tables.description.dtype_from_descr(description) != obj.dtype):
+                raise TypeError('The description parameter is not consistent ',
                             'with the data object')
         parentnode = self._get_or_create_path(where, create_parents)
         if description is None:
@@ -113,6 +115,23 @@ class ProjectFile(tables.File):
         self.create_radar_table(where, name, description=description, **kwargs)
 
 
+    def save_dataframe(self, dataframe, where, name, **kwargs):
+        """Add a pandas dataframe to an entrypoint in the hdf5 file
+        """
+        df = dataframe.reset_index()
+        cols = df.columns
+        attrib_types = {}
+        for col in cols:
+            attrib_types[col] = df[col].dtype.str
+            if 'datetime64' in str(df[col].dtype):
+                df[col] = df[col].astype('int64')
+        descr = dataframe_description(df)
+        table = self.create_radar_table(where, name, description=descr, **kwargs)
+        for k, v in attrib_types.items():
+            setattr(table.attrs, k, v)
+        return table
+
+
 class RadarTable(tables.Table):
     """ A Table object for RADAR data
     Parameters
@@ -123,6 +142,33 @@ class RadarTable(tables.Table):
     """
     def __init__(self, parentnode, name,
                 filters=_FILTER, **kwargs):
-        tables.Table().__init__(parentnode, name, filters=_FILTER, **kwargs)
+        super(RadarTable, self).__init__(parentnode, name, filters=_FILTER, **kwargs)
+
+    def insert_dataframe(self, df, attr=False):
+        pass
 
 
+def dataframe_description(df):
+    descr = {}
+    for col, dt in zip(df.columns, df.dtypes):
+        if dt == 'O':
+            # Object / string
+            descr[col] = tables.StringCol(df[col].map(len).max())
+        elif dt == 'bool':
+            descr[col] = tables.BoolCol()
+        elif dt == 'int32':
+            descr[col] = tables.Int32Col()
+        elif dt == 'int64':
+            descr[col] = tables.Int64Col()
+        elif dt == 'datetime64[ns]':
+            descr[col] = tables.Int64Col()
+        elif dt == 'float32':
+            descr[col] = tables.Float32Col()
+        elif dt == 'float64':
+            descr[col] = tables.Float64Col()
+        elif dt == 'bytes':
+            descr[col] = tables.StringCol(df[col].map(len).max())
+        else:
+            raise ValueError('Unimplemented dtype %s', dt)
+
+    return descr
