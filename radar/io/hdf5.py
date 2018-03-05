@@ -12,23 +12,23 @@ def open_project(filename, mode='r', title='', root_uep='/',
     if tables.file._FILE_OPEN_POLICY == 'strict':
         if filename in tables.file._open_files:
             raise ValueError('The file %s is already open', filename)
-        else:
-            for filehandle in \
-            tables.file._open_files.get_handlers_by_name(filename):
-                omode = filehandle.mode
-                if mode == 'r' and omode != 'r':
-                    raise ValueError(
-                        'The file "%s" is already opened not in ',
-                        'read-only mode', filename)
-                elif mode in ('a', 'r+') and omode == 'r':
-                    raise ValueError(
-                        'The file "%s" is already opened in ',
-                        'read-only mode. Can\'t open append mode.')
-                elif mode == 'w':
-                    raise ValueError(
-                        'The file "%s" is already opened. Can\'t ',
-                        'reopen in write mode', filename)
-        return ProjectFile(filename, mode, title, root_uep, filters, **kwargs)
+    else:
+        for filehandle in \
+        tables.file._open_files.get_handlers_by_name(filename):
+            omode = filehandle.mode
+            if mode == 'r' and omode != 'r':
+                raise ValueError(
+                    'The file "%s" is already opened not in ',
+                    'read-only mode', filename)
+            elif mode in ('a', 'r+') and omode == 'r':
+                raise ValueError(
+                    'The file "%s" is already opened in ',
+                    'read-only mode. Can\'t open append mode.')
+            elif mode == 'w':
+                raise ValueError(
+                    'The file "%s" is already opened. Can\'t ',
+                    'reopen in write mode', filename)
+    return ProjectFile(filename, mode, title, root_uep, filters, **kwargs)
 
 def _descr_from_schema(radar_schema):
     """ Generates a table description from a RADAR schema.

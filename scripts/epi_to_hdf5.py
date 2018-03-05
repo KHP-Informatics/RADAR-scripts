@@ -1,14 +1,16 @@
-import util.avro, util.hdf5
+""" Converts the epilepsy csv dataset into hdf5
+"""
 import glob
-import h5py
+import radar.util.avro
+import radar.io.hdf5
 
-KCL_DIR = ''
-UKLFR_DIR = ''
+KCL_DIR = 'RADAR/Data/Epilepsy/KCL'
+UKLFR_DIR = 'RADAR/Data/Epilepsy/UKLFR'
 
-HDF_FILE = h5py.File('')
+HDF_FILE = radar.io.hdf5.open_project('RADAR/Data/Epilepsy.h5')
 
-KEY_SCHEMA_FILE = 'commons/kafka/measurement_key.avsc'
-VALUE_SCHEMAS_DIR = 'commons/passive'
+KEY_SCHEMA_FILE = 'RADAR/RADAR-Schemas/commons/kafka/measurement_key.avsc'
+VALUE_SCHEMAS_DIR = 'RADAR/RADAR-Schemas/commons/passive'
 
 value_schemas_dict = {'android_'+source.split('/')[-1].split('.')[0]: source
                       for source in glob.glob(VALUE_SCHEMAS_DIR + '/*/*')}
@@ -34,9 +36,8 @@ for subject in kcl_subjects:
         if sources[i] in value_schemas_dict.keys():
             print(sources[i])
             with open(value_schemas_dict[sources[i]], 'r') as f:
-                schema = util.avro.RadarSchema(key_json=key_schema_json,
-                                               value_json=f.read())
+                schema = radar.util.avro.RadarSchema(key_json=key_schema_json,
+                                                     value_json=f.read())
             df = schema.load_csv_folder(subdirs[i])
-            util.hdf5.append_hdf5(dataframe=df, hdf5=HDF_FILE,
-                                  user_id='KCL/'+subj_id+'/raw',
-                                  source=sources[i])
+            where = '/KCL/' + df['key.userId'][0]
+            HDF_FILE.save_dataframe(df, where=where, name=sources[i])
