@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import tables
 import numpy as np
+import pandas as pd
 from radar.util.common import AVRO_HDF_TYPE
 _FILTER = tables.Filters(complib='blosc:snappy', complevel=1, shuffle=True)
 
@@ -71,7 +72,7 @@ class ProjectFile(tables.File):
     def create_radar_table(self, where, name, description=None, title='',
                      filters=_FILTER, expectedrows=1000000,
                      chunkshape=None, byteorder=None,
-                     create_parents=True, obj=None):
+                     createparents=True, obj=None):
         """ Create a new radar table
         Essentially a copy of tables.File.create_table()
         Parameters
@@ -93,7 +94,8 @@ class ProjectFile(tables.File):
                 tables.description.dtype_from_descr(description) != obj.dtype):
                 raise TypeError('The description parameter is not consistent ',
                             'with the data object')
-        parentnode = self._get_or_create_path(where, create_parents)
+            description = descr
+        parentnode = self._get_or_create_path(where, createparents)
         if description is None:
             raise ValueError('No description provided')
         tables.file._checkfilters(filters)
@@ -107,26 +109,21 @@ class ProjectFile(tables.File):
 
         return ptobj
 
-    def create_table_schema(self, where, name, schema, create_parents=True,
+    def create_table_schema(self, where, name, schema, createparents=True,
                             **kwargs):
         """ Create a new table based on a given schema TODO
         """
+        raise NotImplementedError()
         description = schemafunc(schema)
-        self.create_radar_table(where, name, description=description, **kwargs)
+        self.create_radar_table(where, name, description=description,
+                                createparents=createparents, **kwargs)
 
 
-    def save_dataframe(self, dataframe, where, name, **kwargs):
+    def save_dataframe(self, df, where, name, **kwargs):
         """Add a pandas dataframe to an entrypoint in the hdf5 file
         """
-        df = dataframe.reset_index()
-        cols = df.columns
-        attrib_types = {}
-        for col in cols:
-            attrib_types[col] = df[col].dtype.str
-            if 'datetime64' in str(df[col].dtype):
-                df[col] = df[col].astype('int64')
-        descr = dataframe_description(df)
-        table = self.create_radar_table(where, name, description=descr, **kwargs)
+        df, attrib_types = _df_to_usable(df)
+        table = self.create_radar_table(where, name, obj=df, **kwargs)
         for k, v in attrib_types.items():
             setattr(table.attrs, k, v)
         return table
@@ -172,3 +169,24 @@ def dataframe_description(df):
             raise ValueError('Unimplemented dtype %s', dt)
 
     return descr
+
+def _df_to_usable(df):
+    if type(df.index) is not pd.RangeIndex:
+        df = df.reset_index()
+    cols = df.columns
+    dtypes = {}
+    for c in cols:
+        dtypes[c] = df[c].dtype.str
+        if 'datetime64' in str(df[c].dtype):
+            df[c] = df[c].astype('int64')
+    rec = df.to_records(index=False)
+    rec_dtypes = []
+    for name,dtype in rec.dtype.descr:
+        if dtype == '|O':
+            rec_dtypes.append('S' + str(df[name].map(len).max()))
+        else:
+            rec_dtypes.append(dtype)
+    rec = np.rec.fromrecords(rec, formats=rec_dtypes,
+                             names=rec.dtype.names)
+
+    return (rec, dtypes)
