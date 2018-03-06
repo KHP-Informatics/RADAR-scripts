@@ -26,7 +26,7 @@ def open_project(filename, mode='r', title='', root_uep='/',
                     'read-only mode. Can\'t open append mode.')
             elif mode == 'w':
                 raise ValueError(
-                    'The file "%s" is already opened. Can\'t ',
+                    'The file "{}" is already opened. Can\'t ',
                     'reopen in write mode', filename)
     return ProjectFile(filename, mode, title, root_uep, filters, **kwargs)
 

@@ -7,7 +7,7 @@ import radar.io.hdf5
 KCL_DIR = 'RADAR/Data/Epilepsy/KCL'
 UKLFR_DIR = 'RADAR/Data/Epilepsy/UKLFR'
 
-HDF_FILE = radar.io.hdf5.open_project('RADAR/Data/Epilepsy.h5')
+HDF_FILE = radar.io.hdf5.open_project('RADAR/Data/Epilepsy.h5', mode='w')
 
 KEY_SCHEMA_FILE = 'RADAR/RADAR-Schemas/commons/kafka/measurement_key.avsc'
 VALUE_SCHEMAS_DIR = 'RADAR/RADAR-Schemas/commons/passive'
