@@ -4,7 +4,7 @@ import radar.util.edf, radar.io.csv
 
 KCL_DIR = '/Volumes/ext1/Data/Epilepsy/KCL/'
 
-folders = glob.glob(KCL_DIR + '*')
+folders = glob.glob(KCL_DIR + 'KCL2*')
 
 for folder in folders:
     print(folder.split('/')[-1])

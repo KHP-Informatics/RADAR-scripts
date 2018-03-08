@@ -38,7 +38,7 @@ def time_span(dataframe, ycols, timespan, xcol=None, fig=None, colors=None):
     return fig
 
 def add_events(fig, events):
-    for ev_name, ev_loc in events.items():
+    for ev_name, ev_loc in events:
         xloc = ev_loc[0].astype('float')*1e3
         yloc = ev_loc[1]
         span = bokeh.models.Span(location=xloc, dimension='height',
@@ -49,7 +49,23 @@ def add_events(fig, events):
         fig.add_layout(label)
 
 
-
-
 def multiple_timeseries(xcols, ycols, annotations=None, figargs=None):
     pass
+
+def save_fig(fig, filename, filetype='html', **kwargs):
+    if fig.title.text:
+        title = fig.title.text
+    else:
+        title = filename.split('/')[-1]
+
+    if filetype == 'html':
+        bokeh.io.save(fig, filename=filename, title=title, **kwargs)
+    elif filetype == 'png':
+        bokeh.io.export_png(fig, filename=filename, **kwargs)
+    elif filetype == 'svg':
+        bokeh.io.export_svgs(fig, filename=filename, **kwargs)
+    else:
+        raise ValueError('''
+                         Please specify filetype as one of "html", "png"
+                         ', or "svg".
+                         ''')
