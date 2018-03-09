@@ -1,22 +1,51 @@
 #!/usr/bin/env python3
 import tables
 import pandas as pd
-import radar.visualise.interactive
-import radar.io.hdf5
+from . import visualise
+from . import io
 
 class Project():
-    def __init__(self, hdf, subprojects=None):
-        if isinstance(hdf, radar.io.hdf5.ProjectFile):
-            self.hdf_file = hdf
+    def __init__(self, hdf, subprojects=None, **kwargs):
+        if isinstance(hdf, io.hdf5.ProjectFile):
             self.hdf = hdf.root
         elif isinstance(hdf, tables.group.Group):
             self.hdf = hdf
         else:
-            self.hdf_file = radar.io.hdf5.ProjectFile(hdf, 'r')
+            self.hdf_file = io.hdf5.ProjectFile(hdf, 'r')
             self.hdf = self.hdf_file.root
 
-        self.subprojects = subprojects
+        if subprojects is not None:
+            self.subprojects = {sp: Project(getattr(self.hdf, sp), name=sp)
+                                for sp in subprojects}
+        else:
+            self.subprojects = None
+
         self._gen_participants()
+        self.name = kwargs['name'] if 'name' in kwargs else ''
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        info_string = '''member of {class}
+        Project name: {name}
+        Subprojects: {subprojs}
+        No. participants: {num_partic}
+        '''
+        format_kwargs = {'class': type(self),
+                         'name': self.name,
+                         'subprojs': str(self.subprojects),
+                         'num_partic': len(self.participants),
+                        }
+        return info_string.format(**format_kwargs)
+
+    def __del__(self):
+        if hasattr(self, 'hdf_file'):
+            self.hdf_file.close()
+
+    def _resolve_subprojects(self, subprojects_list):
+
+        return -1
 
 
     def _gen_participants(self):
@@ -33,6 +62,20 @@ class Project():
                         Participant(getattr(self.hdf, partic), name=partic)
         return list(self.participants)
 
+    def add_participant(self, name, subproject=None):
+        if subproject is not None:
+            if subproject not in self.subprojects:
+                raise ValueError('No such subproject: {}'.format(subproject))
+            self.subprojects[subproject].add_participant(name)
+            self._gen_participants()
+            return
+        if name in self.participants:
+            print('Participant {} already exists in the project'.format(name))
+            return
+        if name not in self.hdf:
+            where = self.hdf._v_pathname
+            self.hdf._v_file.create_group(where=where, name=name)
+        self.participants[name] = Participant(self.hdf, name=name)
 
 
 class Participant():
@@ -47,10 +90,10 @@ class Participant():
                        xcol='value.time', fig=None, events=None):
         df = self.df_from_data(source, ycols.append(xcol))
         df.set_index(xcol)
-        fig = radar.visualise.interactive.time_span(
+        fig = visualise.interactive.time_span(
             df, ycols, timespan, fig=fig)
         if events != None:
-            radar.visualise.interactive.add_events(fig, events)
+            visualise.interactive.add_events(fig, events)
         return fig
 
     def df_from_data(self, source, cols=None):

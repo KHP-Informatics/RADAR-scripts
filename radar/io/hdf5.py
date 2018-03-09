@@ -63,7 +63,7 @@ class ProjectFile(tables.File):
     """
 
     def __init__(self, filename, mode='r', title='', root_uep='/',
-                 filters=_FILTER, subprojects=[], **kwargs):
+                 filters=_FILTER, subprojects=None, **kwargs):
         super(ProjectFile, self).__init__(filename=filename, mode=mode, title=title,
                                root_uep=root_uep, filters=filters,
                                **kwargs)
