@@ -1,5 +1,6 @@
 import numpy as np
 import h5py
+from ..common import verbosity_wrapper
 
 PRIMITIVE_TYPES = (
     'null',
