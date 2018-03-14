@@ -2,21 +2,20 @@
 import tables
 import pandas as pd
 from . import visualise
-from . import io
+from .io import hdf5
 
 class Project():
     def __init__(self, hdf, subprojects=None, **kwargs):
-        if isinstance(hdf, io.hdf5.ProjectFile):
+        if isinstance(hdf, hdf5.ProjectFile):
             self.hdf = hdf.root
         elif isinstance(hdf, tables.group.Group):
             self.hdf = hdf
         else:
-            self.hdf_file = io.hdf5.ProjectFile(hdf, 'r')
+            self.hdf_file = hdf5.ProjectFile(hdf, 'r')
             self.hdf = self.hdf_file.root
 
         if subprojects is not None:
-            self.subprojects = {sp: Project(getattr(self.hdf, sp), name=sp)
-                                for sp in subprojects}
+            self._gen_subprojects(subprojects)
         else:
             self.subprojects = None
 
@@ -43,10 +42,16 @@ class Project():
         if hasattr(self, 'hdf_file'):
             self.hdf_file.close()
 
-    def _resolve_subprojects(self, subprojects_list):
+    def _resolve_subprojects(self):
 
         return -1
 
+    def _gen_subprojects(self, subproject_paths):
+        self.subprojects = {
+            sp.split('/')[0]: Project(getattr(self.hdf, sp),
+                                      name=sp,
+                                      subprojects='/'.join(sp.split('/')[1:]))
+            for sp in subproject_paths}
 
     def _gen_participants(self):
         self.participants = {}

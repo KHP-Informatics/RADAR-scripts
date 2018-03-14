@@ -26,9 +26,8 @@ def read_folder(path, extension='.csv', sort=False, **kwargs):
     files = glob.glob(os.path.join(path, '*' + extension))
     if files:
         return read_csv_files(files, sort, **kwargs)
-    else:
-        print('No files found in', path)
-        return -1
+    print('No files found in', path)
+    return
 
 def parse_date(timestamp):
     return pd.Timestamp.fromtimestamp(float(timestamp))

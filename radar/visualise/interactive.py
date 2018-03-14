@@ -39,7 +39,9 @@ def time_span(dataframe, ycols, timespan, xcol=None, fig=None, colors=None):
 
 def add_events(fig, events):
     for ev_name, ev_loc in events:
-        xloc = ev_loc[0].astype('float')*1e3
+        if str(ev_loc[0]) == 'NaT':
+            continue
+        xloc = ev_loc[0].timestamp()*1e3
         yloc = ev_loc[1]
         span = bokeh.models.Span(location=xloc, dimension='height',
                                  line_width=2, line_dash='dashed')
