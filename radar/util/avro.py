@@ -3,7 +3,7 @@ from avro import schema
 import pandas as pd
 import numpy as np
 import glob, os, json
-from radar.util.common import *
+from ..common import AVRO_NUMPY_TYPES
 
 class RadarSchema():
     """
@@ -110,10 +110,23 @@ class RadarSchema():
                 return AVRO_NUMPY_TYPES[data_type]
         return [convert_type(x) for x in self.get_col_types()]
 
-    def load_csvs(self, csv_filepath_list, **kwargs):
+    def load_csvs(self, csv_filepath_list, pdkws=None):
+        """
+        Loads data from a list of CSV file paths
+        Parameters
+        __________
+        csv_filepath_list: list
+            A list of file paths to the RADAR data in CSV format
+        pdkws: dict
+            A dictionary with keywords and values to pass to pandas.read_csv
+        Returns
+        _______
+        df: pandas.DataFrame
+            Returns a single dataframe with the data from the CSV files
+        """
         argdict = self._get_schema_kwargs()
-        if kwargs:
-            argdict = argdict.update(kwargs)
+        if pdkws is not None:
+            argdict = argdict.update(pdkws)
         df = pd.concat(pd.read_csv(f, **argdict) for f in csv_filepath_list)
         if self.SORT:
             df = df.sort_values(by=self.SORT)
@@ -121,10 +134,24 @@ class RadarSchema():
             df = df.set_index(self.INDEX)
         return df
 
-    def load_csv_folder(self, folder_path, **kwargs):
+    def load_csv_folder(self, folder_path, pdkws=None):
+        """
+        Loads data from CSV files inside a specified folder
+        Parameters
+        __________
+        folder_path: str
+            A path to the folder containing CSV files
+        pdkws: dict
+            A dictionary of keywords and values to pass to pandas.read_csv
+        Returns
+        _______
+        df: pandas.DataFrame
+            Returns a single dataframe with data from the CSV files in the
+            folder
+        """
         files = glob.glob(os.path.join(folder_path, '*' + self.CSV_EXT))
         if files:
-            return self.load_csvs(files, **kwargs)
+            return self.load_csvs(files, **pdkws if pdkws is not None else {})
         else:
             raise IOError('No CSV files found in given path')
 

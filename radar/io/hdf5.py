@@ -2,7 +2,7 @@
 import tables
 import numpy as np
 import pandas as pd
-from radar.util.common import AVRO_HDF_TYPE
+from ..common import AVRO_HDF_TYPE
 _FILTER = tables.Filters(complib='blosc:snappy', complevel=1, shuffle=True)
 
 def open_project(filename, mode='r', title='', root_uep='/',

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import re
-from collections import OrderedDict
 import numpy as np
 import pandas as pd
+from collections import OrderedDict
 
 _NAT = np.datetime64('NaT')
 

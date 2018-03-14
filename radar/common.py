@@ -1,6 +1,31 @@
 from functools import wraps
+import numpy as np
 
 VERBOSITY = 0
+
+AVRO_NUMPY_TYPES = {
+    'null': None,
+    'boolean': np.bool_,
+    'int': np.int32,
+    'long': np.int64,
+    'float': np.float32,
+    'double': np.float64,
+    'bytes': np.bytes_,
+    'string': np.object,
+    'enum': np.object,
+}
+
+AVRO_HDF_TYPE = {
+    'null': 1,
+    'boolean': 1,
+    'int': 1,
+    'long': 1,
+    'float': 1,
+    'double': 1,
+    'bytes': 1,
+    'string': 1,
+    'enum': 1,
+}
 
 def debug_wrapper(function):
     @wraps(function)
