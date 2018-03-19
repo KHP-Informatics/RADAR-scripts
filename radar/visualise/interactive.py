@@ -52,7 +52,7 @@ def add_events(fig, events):
 
 
 def multiple_timeseries(xcols, ycols, annotations=None, figargs=None):
-    pass
+    raise NotImplementedError
 
 def save_fig(fig, filename, filetype='html', **kwargs):
     if fig.title.text:
