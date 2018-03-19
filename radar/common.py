@@ -28,6 +28,9 @@ AVRO_HDF_TYPE = {
 }
 
 def debug_wrapper(function):
+    """ Wrapper that prints debug information when radar.common.VERBOSITY
+    is set above 0.
+    """
     @wraps(function)
     def wrapper(*args, **kwargs):
         if not VERBOSITY:
@@ -55,3 +58,35 @@ def debug_wrapper(function):
                                                         function.__module__))
         return result
     return wrapper
+
+def iter_repeater(x):
+    """ Returns a function that will yield an object a given number of times
+    Parameters
+    _________
+    x: object
+        The object to be yielded
+    Returns
+    _______
+    repeat: function
+        A function that yields 'x' a given number of times (set by the
+        function's parameter 'times').
+    """
+    def repeat(times):
+        """ Yields a set object a number of times
+        Parameters
+        _________
+        times: int
+            The number of times to yield the object
+        Yields
+        ______
+        x: object
+            An object defined at the functions creation time.
+        See Also
+        ________
+        radar.common.iter_repeater
+        """
+        i = 0
+        while i < times:
+            i += 1
+            yield x
+    return repeat

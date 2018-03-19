@@ -5,67 +5,90 @@ from . import visualise
 from .io import hdf5
 
 class Project():
-    def __init__(self, hdf, subprojects=None, **kwargs):
-        if isinstance(hdf, hdf5.ProjectFile):
-            self.hdf = hdf.root
-        elif isinstance(hdf, tables.group.Group):
-            self.hdf = hdf
-        else:
-            self.hdf_file = hdf5.ProjectFile(hdf, 'r')
-            self.hdf = self.hdf_file.root
+    def __init__(self, hdf, mode='r', **kwargs):
+        if isinstance(hdf, tables.group.Group):
+            self._hdf = hdf
+            self._is_subproject = True
+        elif isinstance(hdf, tables.link.ExternalLink):
+            self._hdf = hdf()
+            self._is_subproject = True
 
-        if subprojects is not None:
-            self._gen_subprojects(subprojects)
+        elif isinstance(hdf, hdf5.ProjectFile):
+            self._hdf_file = hdf
+            self._hdf = hdf.root
+            self._is_subproject = False
         else:
-            self.subprojects = None
+            self._hdf_file = hdf5.ProjectFile(hdf, mode)
+            self._hdf = self._hdf_file.root
+            self._is_subproject = False
 
-        self._gen_participants()
-        self.name = kwargs['name'] if 'name' in kwargs else ''
+        participants = kwargs.get('participants')
+        if participants is None:
+            self.participants = self._gen_participants()
+        else:
+            self.participants = participants
+            self.participants.update(self._gen_participants())
+
+        subprojects = kwargs.get('subprojects')
+        if subprojects is None:
+            self.subprojects = self._gen_subprojects()
+        else:
+            self.subprojects = subprojects
+            self.subprojects.update(self._gen_subprojects())
+
+        self.name = kwargs['name'] if 'name' in kwargs else \
+            self._hdf._v_file.filename + self._hdf._v_pathname
+
+        self.parent = kwargs['parent'] if 'parent' in kwargs else None
 
     def __str__(self):
-        return self.name
+        return 'RADAR {}: {}, {} participants'.format(
+            'Project' if hasattr(self, '_hdf_file') else 'Subproject',
+            self.name,
+            len(self.participants))
 
     def __repr__(self):
         info_string = '''member of {class}
-        Project name: {name}
+        Name: {name}
         Subprojects: {subprojs}
         No. participants: {num_partic}
         '''
         format_kwargs = {'class': type(self),
                          'name': self.name,
-                         'subprojs': str(self.subprojects),
+                         'subprojs': ', '.join(self.subprojects.keys()) or 'None',
                          'num_partic': len(self.participants),
                         }
         return info_string.format(**format_kwargs)
 
     def __del__(self):
-        if hasattr(self, 'hdf_file'):
-            self.hdf_file.close()
-
-    def _resolve_subprojects(self):
-
-        return -1
-
-    def _gen_subprojects(self, subproject_paths):
-        self.subprojects = {
-            sp.split('/')[0]: Project(getattr(self.hdf, sp),
-                                      name=sp,
-                                      subprojects='/'.join(sp.split('/')[1:]))
-            for sp in subproject_paths}
+        if hasattr(self, '_hdf_file'):
+            self._hdf_file.close()
 
     def _gen_participants(self):
-        self.participants = {}
-        if self.subprojects:
-            for sp in self.subprojects:
-                sp_hdf = getattr(self.hdf, sp)
-                for partic in getattr(sp_hdf, '_v_children'):
-                    self.participants[partic] = \
-                        Participant(getattr(sp_hdf, partic), name=partic)
-        else:
-            for partic in getattr(self.hdf, '_v_children'):
-                self.participants[partic] = \
-                        Participant(getattr(self.hdf, partic), name=partic)
-        return list(self.participants)
+        participants = AttrRecDict()
+        for name, child in self._hdf._v_children.items():
+            if isinstance(child, tables.link.Link):
+                child = child()
+            if not hasattr(child._v_attrs, 'RADAR_TYPE'):
+                continue
+            if child._v_attrs.RADAR_TYPE == 'SUBPROJECT':
+                participants[name] = AttrRecDict()
+            elif child._v_attrs.RADAR_TYPE == 'PARTICIPANT':
+                participants[name] = Participant(child)
+        return participants
+
+    def _gen_subprojects(self):
+        subprojects = AttrRecDict()
+        for name, child in self._hdf._v_children.items():
+            if isinstance(child, tables.link.Link):
+                child = child()
+            if not hasattr(child._v_attrs, 'RADAR_TYPE'):
+                continue
+            if child._v_attrs.RADAR_TYPE == 'SUBPROJECT':
+                sp = Project(child, participants=self.participants[name],
+                             name=name)
+                subprojects[name] = sp
+        return subprojects
 
     def add_participant(self, name, subproject=None):
         if subproject is not None:
@@ -77,19 +100,20 @@ class Project():
         if name in self.participants:
             print('Participant {} already exists in the project'.format(name))
             return
-        if name not in self.hdf:
-            where = self.hdf._v_pathname
-            self.hdf._v_file.create_group(where=where, name=name)
-        self.participants[name] = Participant(self.hdf, name=name)
+        if name not in self._hdf:
+            where = self._hdf._v_pathname
+            self._hdf._v_file.create_group(where=where, name=name)
+        self.participants[name] = Participant(self._hdf, name=name)
 
 
 class Participant():
-    def __init__(self, hdf, name):
-        self.hdf = hdf
-        self.name = name
+    def __init__(self, hdf, **kwargs):
+        self._hdf = hdf
+        self.name = kwargs['name'] if 'name' in kwargs else self._hdf._v_name
+        self.parent = kwargs['parent'] if 'parent' in kwargs else None
 
     def available_data(self):
-        return [source.name for source in self.hdf._f_iter_nodes()]
+        return [source.name for source in self._hdf._f_iter_nodes()]
 
     def plot_time_span(self, source, timespan, ycols,
                        xcol='value.time', fig=None, events=None):
@@ -102,7 +126,7 @@ class Participant():
         return fig
 
     def df_from_data(self, source, cols=None):
-        table = getattr(self.hdf, source)
+        table = getattr(self._hdf, source)
         if cols is None:
             cols = table.colnames
 
@@ -114,3 +138,70 @@ class Participant():
                 df[c] = df[c].astype(dtype)
 
         return df
+
+
+class RecursiveDict(dict):
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+
+    def __getitem__(self, key):
+        if key == '/':
+            return self
+        key_split = key.split('/')
+        key = key_split.pop(0)
+        if key == '':
+            return KeyError('')
+        if key_split:
+            return dict.__getitem__(self, key).__getitem__('/'.join(key_split))
+        else:
+            return dict.__getitem__(self, key)
+
+
+    def _get_x(self, xattr):
+        out = []
+        for x, v in zip(getattr(self, xattr)(), self.values()):
+            if isinstance(v, RecursiveDict):
+                out.extend(v._get_x(xattr))
+            else:
+                out.append(x)
+        return out
+
+    def _get_items(self):
+        return self._get_x('items')
+
+    def _get_values(self):
+        return self._get_x('values')
+
+    def _get_keys(self):
+        return self._get_x('keys')
+
+    def __iter__(self):
+        return iter(self._get_values())
+
+    def __len__(self):
+        return len(self._get_keys())
+
+class AttrRecDict(RecursiveDict):
+    def __getattr__(self, name):
+        if name not in [x for x in self._get_keys()]:
+            raise AttributeError(
+                "No such attribute '{}' in '{}'".format(name, self))
+        kv = self._get_items()
+        val = [x[1] for x in kv if x[0] == name] or None
+        if val is None:
+            raise AttributeError(
+                "No such attribute '{}' in '{}'".format(name, self))
+        elif len(val) > 1:
+            raise ValueError(
+                'Multiple participants with the same ID: {}'.format(name))
+        return val[0]
+
+    def __repr__(self):
+        repr_string = ('Recursive attribute dictionary\n'
+                       'Class: {}\n'
+                       'Top-level keys: {}\n'
+                       'Total keys: {}\n').format(self.__class__,
+                                                len(self.keys()),
+                                                len(self))
+        return repr_string
+

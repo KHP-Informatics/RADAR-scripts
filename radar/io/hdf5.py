@@ -31,6 +31,7 @@ def open_project(filename, mode='r', title='', root_uep='/',
     return ProjectFile(filename, mode, title, root_uep, filters, **kwargs)
 
 def _descr_from_schema(radar_schema):
+    raise NotImplementedError('TODO: make dict')
     """ Generates a table description from a RADAR schema.
     Parameters
     _________
@@ -119,13 +120,15 @@ class ProjectFile(tables.File):
                                 createparents=createparents, **kwargs)
 
 
-    def save_dataframe(self, df, where, name, **kwargs):
+    def save_dataframe(self, df, where, name, source_type='DATA', **kwargs):
         """Add a pandas dataframe to an entrypoint in the hdf5 file
         """
         df, attrib_types = _df_to_usable(df)
         table = self.create_radar_table(where, name, obj=df, **kwargs)
         for k, v in attrib_types.items():
             setattr(table.attrs, k, v)
+        setattr(table.attrs, 'NAME', name)
+        setattr(table.attrs, 'RADAR_TYPE', source_type)
         return table
 
 
