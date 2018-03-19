@@ -144,7 +144,7 @@ class RadarTable(tables.Table):
                 filters=_FILTER, **kwargs):
         super(RadarTable, self).__init__(parentnode, name, filters=_FILTER, **kwargs)
 
-    def insert_dataframe(self, df, attr=False):
+    def insert_dataframe(self, df, attr=None):
         pass
 
 
