@@ -6,10 +6,10 @@ from radar.util.avro import RadarSchema
 from radar.util.parsers import uklfr_subject_ext_csv
 from radar.visualise import interactive
 
-SCHEMA_DIR = '/Users/callum/RADAR/RADAR-Schemas/commons/passive'
-YAML_DIR = '/Users/callum/RADAR/RADAR-Schemas/specifications/passive'
-UKLFR_DIR = '/Users/callum/RADAR/Data/Epilepsy/UKLFR'
-OUTPUT_DIR = '/Users/callum/RADAR/plots'
+SCHEMA_DIR = 'RADAR-Schemas/commons/passive'
+YAML_DIR = 'RADAR-Schemas/specifications/passive'
+UKLFR_DIR = ''
+OUTPUT_DIR = 'plots'
 
 # this needs to change
 ycolumns = {

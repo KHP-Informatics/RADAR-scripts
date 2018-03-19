@@ -4,14 +4,14 @@ import glob
 import radar.util.avro
 import radar.io.hdf5
 
-KCL_DIR = '/Users/callum/RADAR/Data/Epilepsy/KCL'
-UKLFR_DIR = '/Users/callum/RADAR/Data/Epilepsy/UKLFR'
+KCL_DIR = ''
+UKLFR_DIR = ''
 
-HDF_FILE = radar.io.hdf5.open_project('/Users/callum/RADAR/Data/Epilepsy.h5',
+HDF_FILE = radar.io.hdf5.open_project('Epilepsy.h5',
                                       mode='a')
 
-KEY_SCHEMA_FILE = '/Users/callum/RADAR/RADAR-Schemas/commons/kafka/measurement_key.avsc'
-VALUE_SCHEMAS_DIR = '/Users/callum/RADAR/RADAR-Schemas/commons/passive'
+KEY_SCHEMA_FILE = 'RADAR-Schemas/commons/kafka/measurement_key.avsc'
+VALUE_SCHEMAS_DIR = 'RADAR-Schemas/commons/passive'
 
 value_schemas_dict = {'android_'+source.split('/')[-1].split('.')[0]: source
                       for source in glob.glob(VALUE_SCHEMAS_DIR + '/*/*')}
@@ -21,7 +21,7 @@ with open(KEY_SCHEMA_FILE, 'r') as f:
 
 
 """ KCL Subjects """
-"""
+
 kcl_subjects = glob.glob(KCL_DIR+'/KCL[0-9][0-9]')
 possible_subdirs = set(['E4', 'EMPATICA'])
 
@@ -44,7 +44,7 @@ for subject in kcl_subjects:
             where = '/KCL/' + df['key.userId'][0]
             HDF_FILE.save_dataframe(df, where=where, name=sources[i])
 
-"""
+
 """ UKLFR Subjects """
 
 lfr_subjects = glob.glob(UKLFR_DIR + '/UKLFR*')
