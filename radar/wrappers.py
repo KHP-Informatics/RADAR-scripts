@@ -107,13 +107,20 @@ class Project():
 
 
 class Participant():
+
     def __init__(self, hdf, **kwargs):
         self._hdf = hdf
         self.name = kwargs['name'] if 'name' in kwargs else self._hdf._v_name
         self.parent = kwargs['parent'] if 'parent' in kwargs else None
+        self._gen_data()
 
-    def available_data(self):
-        return [source.name for source in self._hdf._f_iter_nodes()]
+    def _gen_data(self):
+        self.data = ParticipantData()
+        for node in self._hdf._f_iter_nodes():
+            if isinstance(node, tables.link.Link):
+                node = node()
+            self.data[node.name] = node
+        return self.data
 
     def plot_time_span(self, source, timespan, ycols,
                        xcol='value.time', fig=None, events=None):
@@ -138,6 +145,14 @@ class Participant():
                 df[c] = df[c].astype(dtype)
 
         return df
+
+
+class ParticipantData(dict):
+    def __repr__(self):
+        return 'Participant data tables:\n' + ', '.join(list(self.keys()))
+
+    def available(self):
+        print('hi')
 
 
 class RecursiveDict(dict):
