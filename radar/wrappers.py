@@ -2,7 +2,7 @@
 import tables
 import pandas as pd
 from . import visualise
-from .io import hdf5
+from .io.hdf5 import ProjectFile, RadarTable
 
 class Project():
     def __init__(self, hdf, mode='r', **kwargs):
@@ -13,12 +13,13 @@ class Project():
             self._hdf = hdf()
             self._is_subproject = True
 
-        elif isinstance(hdf, hdf5.ProjectFile):
+        elif isinstance(hdf, ProjectFile):
             self._hdf_file = hdf
+
             self._hdf = hdf.root
             self._is_subproject = False
         else:
-            self._hdf_file = hdf5.ProjectFile(hdf, mode)
+            self._hdf_file = ProjectFile(hdf, mode)
             self._hdf = self._hdf_file.root
             self._is_subproject = False
 
@@ -95,7 +96,6 @@ class Project():
             if subproject not in self.subprojects:
                 raise ValueError('No such subproject: {}'.format(subproject))
             self.subprojects[subproject].add_participant(name)
-            self._gen_participants()
             return
         if name in self.participants:
             print('Participant {} already exists in the project'.format(name))
@@ -103,11 +103,40 @@ class Project():
         if name not in self._hdf:
             where = self._hdf._v_pathname
             self._hdf._v_file.create_group(where=where, name=name)
-        self.participants[name] = Participant(self._hdf, name=name)
+        self.participants[name] = Participant(self._hdf._f_get_child(name),
+                                              name=name)
+
+    def map_participants(self, func, *args, **kwargs):
+        def ptc_func(ptc, *args, **kwargs):
+            return func(ptc, *args, **kwargs)
+        return map(ptc_func, list(self.participants))
 
 
 class Participant():
+    """ A class to hold data and methods concerning participants/subjects in a
+    RADAR trial. Typically intialised by opening a Project.
+    Initialisation parameters
+    __________
+    hdf: tables.Group
+        A pytables group object that contains the data relating to the
+        participant.
+    name: str (optional)
+        The name of the participant. If not given it will take a name from the
+        hdf group
+    parent: radar.Project
+        The parent project of the participant.
 
+    Objects
+    _______
+    data: ParticipantData (dict subclass)
+        A dictionary containing each data table in the hdf for the participant.
+        It has ease-of-use methods for using the data.
+        See also: radar.wrappers.ParticipantData
+    info: NotImplemented - will contain info pertaining to the participant
+          (sex, age, etc)
+    labels: NotImplemented - will contain event labels / times for the data
+
+    """
     def __init__(self, hdf, **kwargs):
         self._hdf = hdf
         self.name = kwargs['name'] if 'name' in kwargs else self._hdf._v_name
@@ -115,10 +144,19 @@ class Participant():
         self._gen_data()
 
     def _gen_data(self):
+        """ Generates data object for the participant from the hdf group
+        Returns
+        ______
+        self.data: ParticipantData
+            Returns the data object that it just set as self.data. Typically
+            not used
+        """
         self.data = ParticipantData()
         for node in self._hdf._f_iter_nodes():
             if isinstance(node, tables.link.Link):
                 node = node()
+            if isinstance(node, tables.table.Table):
+                node.__class__ = RadarTable
             self.data[node.name] = node
         return self.data
 
