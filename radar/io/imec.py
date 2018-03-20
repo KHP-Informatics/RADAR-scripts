@@ -3,62 +3,62 @@ import pandas as pd
 import numpy as np
 import tables
 from .hdf5 import open_project
+from collections import OrderedDict as od
 
-IMEC_TABLE_ACC = {
-    'time': tables.Int64Col(),
-    'x': tables.Float32Col(),
-    'y': tables.Float32Col(),
-    'z': tables.Float32Col(),
-}
-IMEC_TABLE_BATTERY = {
-    'time': tables.Int64Col(),
-    'charge': tables.Float32Col(),
-}
-IMEC_TABLE_ECG = {
-    'time': tables.Int64Col(),
-    'ecg': tables.Float32Col(),
-}
-IMEC_TABLE_EMG = {
-    'time': tables.Int64Col(),
-    'emg': tables.Float32Col(),
-}
-IMEC_TABLE_GSR = {
-    'time': tables.Int64Col(),
-    'gsr_1': tables.Float32Col(),
-    'gsr_2': tables.Float32Col(),
-}
-IMEC_TABLE_PIE = {
-    'time': tables.Int64Col(),
-    'pie': tables.Float32Col(),
-}
-IMEC_TABLE_TEMP = {
-    'time': tables.Int64Col(),
-    'temperature': tables.Float32Col(),
-}
-imec_tables = {
-    'imec_acceleration': (IMEC_TABLE_ACC, {'time': '<M8[ns]', 'x': '<f4',
-                                           'y': '<f4', 'z': '<f4'}),
-    'imec_battery': (IMEC_TABLE_BATTERY, {'time': '<M8[ns]', 'charge':
-                                          '<f4'}),
-    'imec_ecg': (IMEC_TABLE_ECG, {'time': '<M8[ns]', 'ecg': '<f4'}),
-    'imec_emg': (IMEC_TABLE_EMG, {'time': '<M8[ns]', 'emg': '<f4'}),
-    'imec_gsr': (IMEC_TABLE_GSR, {'time': '<M8[ns]', 'gsr_1': '<f4',
-                                  'gsr_2': '<f4'}),
-    'imec_pie': (IMEC_TABLE_PIE, {'time': '<M8[ns]', 'pie': '<f4'}),
-    'imec_temp': (IMEC_TABLE_TEMP, {'time': '<M8[ns]', 'temperature':
-                                    '<f4'}),
-}
+IMEC_TABLE_ACC = od((
+    ('value.time', tables.Int64Col()),
+    ('value.x', tables.Float32Col()),
+    ('value.y', tables.Float32Col()),
+    ('value.z', tables.Float32Col()),
+))
+IMEC_TABLE_BATTERY = od((
+    ('value.time', tables.Int64Col()),
+    ('value.charge', tables.Float32Col()),
+))
+IMEC_TABLE_ECG = od((
+    ('value.time', tables.Int64Col()),
+    ('value.ecg', tables.Float32Col()),
+    ('value.emg', tables.Float32Col()),
+    ('value.gsr_1', tables.Float32Col()),
+    ('value.gsr_2', tables.Float32Col()),
+))
+IMEC_TABLE_PIE = od((
+    ('value.time', tables.Int64Col()),
+    ('value.pie', tables.Float32Col()),
+))
+IMEC_TABLE_TEMP = ((
+    ('value.time', tables.Int64Col()),
+    ('value.temperature', tables.Float32Col()),
+))
+IMEC_TABLES = od((
+    'imec_acceleration', (IMEC_TABLE_ACC, od((('value.time', '<M8[ns]'),
+                                              ('value.x', '<f4'),
+                                              ('value.y', '<f4'),
+                                              ('value.z', '<f4')))),
+    'imec_battery', (IMEC_TABLE_BATTERY, od((('value.time', '<M8[ns]'),
+                                             ('value.charge', '<f4')))),
+    'imec_electrodes', (IMEC_TABLE_ECG, od((('value.time', '<M8[ns]'),
+                                            ('value.ecg', '<f4'),
+                                            ('value.emg', '<f4'),
+                                            ('value.gsr_1', '<f4'),
+                                            ('value.gsr_2', '<f4')))),
+    'imec_pie', (IMEC_TABLE_PIE, od((('value.time', '<M8[ns]'),
+                                     ('value.pie', '<f4')))),
+    'imec_temp', (IMEC_TABLE_TEMP, od((('value.time', '<M8[ns]'),
+                                       ('value.temperature', '<f4'))))
+))
+
 IMEC_DATA_NAMES = {'imec_acceleration': ['ACC-X', 'ACC-Y', 'ACC-Z'],
                    'imec_battery': ['Battery'],
-                   'imec_ecg': ['ECG'],
-                   'imec_emg': ['EMG'],
-                   'imec_gsr': ['GSR-1', 'GSR-2'],
+                   'imec_electrodes': ['ECG', 'EMG', 'GSR-1', 'GSR-2'],
                    'imec_pie': ['PIE'],
-                   'imec_temp': ['Temperature']}
+                   'imec_temp': ['Temp']}
 
 def make_tables(target_hdf, target_where):
     out_dict = {}
-    for title, table in imec_tables.items():
+    for title, table in IMEC_TABLES.items():
+        print(title)
+        print(target_where)
         out_dict[title] = target_hdf.create_radar_table(
             where=target_where, name=title, description=table[0], title=title)
         for k, v in table[1].items():
@@ -76,13 +76,6 @@ def data_generator(table, cols=None, batch_size=None):
         yield table[i:i+batch_size][cols]
         i += batch_size
 
-def hdf_to_dataframes(imec_path, start_datetime=None):
-    hdf = tables.open_file(imec_path, 'r')
-    if start_datetime is None:
-        dt_string = getattr(hdf.root.Devices.Radar._v_attrs, '#DateTime')
-        dt_string = dt_string.decode('utf-8')
-        start_datetime = pd.to_datetime(dt_string)
-
 def transfer_hdf(imec_hdf, target_hdf, target_where='', batch_size=None,
                  start_datetime=None):
     def get_freq(signal, name):
@@ -98,14 +91,18 @@ def transfer_hdf(imec_hdf, target_hdf, target_where='', batch_size=None,
         i = 0
         freq = get_freq(signal, data_names[0])
         inv_freq_ns = (1/freq)*10**9
-        col_gens = [data_generator(getattr(signal, name).Data) for name in data_names]
+        col_gens = [data_generator(getattr(signal, name).Data,
+                                   batch_size=batch_size) for name in data_names]
         for cols in zip(*col_gens):
+            print(i)
             time_col = make_time_idx(inv_freq_ns, i, len(cols[0][0]))
-            df_dict = {name: data[0] for name, data in zip(col_names, cols)}
+            df_dict = od([(name, data[0]) for name, data
+                          in zip(col_names, cols)])
+
             df_dict['time'] = time_col
             df = pd.DataFrame(df_dict)
             outtab.append(df.to_records(index=False))
-            i += len(cols[0])
+            i += len(cols[0][0])
 
     if not isinstance(imec_hdf, tables.File):
         imec_hdf = open_project(imec_hdf, 'r')
@@ -124,7 +121,8 @@ def transfer_hdf(imec_hdf, target_hdf, target_where='', batch_size=None,
     target_tables = make_tables(target_hdf, target_where)
     signal = imec_hdf.root.Devices.Radar.Signal
 
-    for modality in imec_tables:
+    for modality in IMEC_TABLES:
+        print(modality)
         append_tab(target_tables[modality],
                    IMEC_DATA_NAMES[modality],
-                   set(imec_tables[modality][1].keys()).difference(['time']))
+                   set(IMEC_TABLES[modality][1].keys()).difference(['time']))
