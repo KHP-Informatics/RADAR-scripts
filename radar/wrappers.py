@@ -250,11 +250,11 @@ class AttrRecDict(RecursiveDict):
         return val[0]
 
     def __repr__(self):
-        repr_string = ('Recursive attribute dictionary\n'
-                       'Class: {}\n'
-                       'Top-level keys: {}\n'
-                       'Total keys: {}\n').format(self.__class__,
-                                                len(self.keys()),
-                                                len(self))
+        repr_string = ('Recursive attribute dictionary: {}\n'
+                       'Total items: {}\n'
+                       'Top-level keys: {}\n').format(
+                           self.__class__,
+                           len(self),
+                           ', '.join(list(self.keys())))
         return repr_string
 
