@@ -3,7 +3,32 @@ from avro import schema
 import pandas as pd
 import numpy as np
 import glob, os, json
-from ..common import AVRO_NUMPY_TYPES
+from ..common import AVRO_NP_TYPES
+from ..defaults import _SCHEMA_DIR, _SCHEMA_KEY_FILE, _DEVICE
+
+class ProjectSchemas(dict):
+    def __init__(self, schema_dir=_SCHEMA_DIR, key_schema=_SCHEMA_KEY_FILE):
+        if key_schema is not None:
+            with open(key_schema, 'r') as f:
+                key_schema = f.read()
+
+        avsc_files = glob.glob(schema_dir + '/**/*.avsc', recursive=True)
+        for schema_path in avsc_files:
+            rel_path = os.path.relpath(schema_path, schema_dir)
+            split_rel_path = rel_path.split(os.path.sep)
+            if split_rel_path[0] not in ('active', 'passive'):
+                continue
+            name = ''.join((_DEVICE if split_rel_path[0] == 'passive' else '',
+                            split_rel_path[-1]))[:-5]
+            with open(schema_path, 'r') as f:
+                try:
+                    obj = RadarSchema(value_json=f.read(), key_json=key_schema)
+                    self[name] = obj
+                except schema.SchemaParseException:
+                    print(name, 'could not be parsed because it has',
+                          'an unresolved nested schema.\n',
+                          'Nested schemas are not currently supported.')
+
 
 class RadarSchema():
     """
@@ -107,7 +132,7 @@ class RadarSchema():
                 else:
                     return np.object
             else:
-                return AVRO_NUMPY_TYPES[data_type]
+                return AVRO_NP_TYPES[data_type]
         return [convert_type(x) for x in self.get_col_types()]
 
     def load_csvs(self, csv_filepath_list, pdkws=None):

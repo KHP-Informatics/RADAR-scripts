@@ -34,7 +34,8 @@ class Project():
         if subprojects is None:
             self.subprojects = self._gen_subprojects()
         else:
-            self.subprojects = subprojects
+            self.subprojects = {name: self._hdf._f_get_child(name) for
+                                name in subprojects}
             self.subprojects.update(self._gen_subprojects())
 
         self.name = kwargs['name'] if 'name' in kwargs else \

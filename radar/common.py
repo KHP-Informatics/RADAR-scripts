@@ -1,9 +1,7 @@
-from functools import wraps
 import numpy as np
+import tables
 
-VERBOSITY = 0
-
-AVRO_NUMPY_TYPES = {
+AVRO_NP_TYPES = {
     'null': None,
     'boolean': np.bool_,
     'int': np.int32,
@@ -27,37 +25,21 @@ AVRO_HDF_TYPE = {
     'enum': 1,
 }
 
-def debug_wrapper(function):
-    """ Wrapper that prints debug information when radar.common.VERBOSITY
-    is set above 0.
-    """
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        if not VERBOSITY:
-            return function(*args, **kwargs)
-        print('^^^^^^^^^^ {} from {} ^^^^^^^^^^'.format(
-            function.__name__, function.__module__))
-        if VERBOSITY > 1:
-            print('Args: ')
-            for arg in args:
-                print('Class: {} | Value: {}'.format(
-                    arg.__class__, arg.__str__()))
+NP_HDF_TYPES = {}
 
-            print('KWargs: ')
-            for key, value in kwargs.items():
-                print('{}: Class: {} | Value: {}'.format(key, value.__class__,
-                                                       value.__str__()))
-        print('____________________')
-        result = function(*args, **kwargs)
-        print('____________________')
-        if VERBOSITY > 2:
-            print('Result: ')
-            print('Class: {} | Value: {}'.format(
-                result.__class__, result.__str__()))
-        print('vvvvvvvvvv {} from {} vvvvvvvvvv'.format(function.__name__,
-                                                        function.__module__))
-        return result
-    return wrapper
+def _datetime_to_int(arr):
+    return arr.astype('int64')
+
+NP_HDF_CONVERSION = {
+    '<M8[ns]': _datetime_to_int,
+}
+
+
+def col_names(obj):
+    if isinstance(obj, np.ndarray):
+        return list(obj.dtype.names)
+    else:
+        return list(obj.columns)
 
 def iter_repeater(x):
     """ Returns a function that will yield an object a given number of times
@@ -90,3 +72,15 @@ def iter_repeater(x):
             i += 1
             yield x
     return repeat
+
+def progress_bar(progress, total, prefix='Progress: ', suffix='', length=50):
+    completed = int((progress/total)*length)
+    bar = "{pre} |{comp}{empty}| {suff}".format(
+        pre=prefix,
+        comp='█' * completed,
+        empty='-' * (length - completed),
+        suff=suffix)
+    print(bar, end='\r')
+    if progress >= total:
+        print('')
+
