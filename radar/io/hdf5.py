@@ -51,10 +51,10 @@ def project_from_csvs(project_file, folder_path, subprojects=None,
         Path to the filesystem project directory
     subprojects (optional): list or None
         A list of subprojects to look for participants in. Paths relative to
-        folder_path. 
+        folder_path.
     specifications (optional): dict / radar.util.avro.ProjectSchemas
         A dictionary containing schema names and the associated RadarSchema
-        object. Default uses default package schemas.
+        object. Default uses default package specifications.
     specs_only (optional): Bool
         Whether to only load data from modalities with a known specification.
         If False, the datatype will be inferred.
@@ -107,7 +107,7 @@ def participant_from_csvs(project_file, where, name, folder_path,
     ptc_hdf = project_file.create_group(where, name)
     folders = set([os.path.split(f)[0] for f in
                    glob.glob(folder_path+'/**/*.csv', recursive=True)])
-    
+
 
 
 def _descr_from_schema(radar_schema):

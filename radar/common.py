@@ -27,13 +27,78 @@ AVRO_HDF_TYPE = {
 
 NP_HDF_TYPES = {}
 
-def _datetime_to_int(arr):
-    return arr.astype('int64')
-
 NP_HDF_CONVERSION = {
     '<M8[ns]': _datetime_to_int,
 }
 
+class RecursiveDict(dict):
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+
+    def __getitem__(self, key):
+        if key == '/':
+            return self
+        key_split = key.split('/')
+        key = key_split.pop(0)
+        if key == '':
+            return KeyError('')
+        if key_split:
+            return dict.__getitem__(self, key).__getitem__('/'.join(key_split))
+        else:
+            return dict.__getitem__(self, key)
+
+
+    def _get_x(self, xattr):
+        out = []
+        for x, v in zip(getattr(self, xattr)(), self.values()):
+            if isinstance(v, RecursiveDict):
+                out.extend(v._get_x(xattr))
+            else:
+                out.append(x)
+        return out
+
+    def _get_items(self):
+        return self._get_x('items')
+
+    def _get_values(self):
+        return self._get_x('values')
+
+    def _get_keys(self):
+        return self._get_x('keys')
+
+    def __iter__(self):
+        return iter(self._get_values())
+
+    def __len__(self):
+        return len(self._get_keys())
+
+class AttrRecDict(RecursiveDict):
+    def __getattr__(self, name):
+        if name not in [x for x in self._get_keys()]:
+            raise AttributeError(
+                "No such attribute '{}' in '{}'".format(name, self))
+        kv = self._get_items()
+        val = [x[1] for x in kv if x[0] == name] or None
+        if val is None:
+            raise AttributeError(
+                "No such attribute '{}' in '{}'".format(name, self))
+        elif len(val) > 1:
+            raise ValueError(
+                'Multiple participants with the same ID: {}'.format(name))
+        return val[0]
+
+    def __repr__(self):
+        repr_string = ('Recursive attribute dictionary: {}\n'
+                       'Total items: {}\n'
+                       'Top-level keys: {}\n').format(
+                           self.__class__,
+                           len(self),
+                           ', '.join(list(self.keys())))
+        return repr_string
+
+
+def _datetime_to_int(arr):
+    return arr.astype('int64')
 
 def col_names(obj):
     if isinstance(obj, np.ndarray):
