@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
+import os
+import glob
 import tables
 import pandas as pd
 from . import visualise
-from .io.hdf5 import ProjectFile, RadarTable
-from .common import AttrRecDict
+from .common import AttrRecDict, progress_bar
+from .io.hdf5 import ProjectFile, RadarTable, open_project_file
+from .io.csv import read_folder
+from .util.specifications import ProjectSpecs
+from .util.avro import ProjectSchemas
 
 class Project():
     def __init__(self, hdf, mode='r', **kwargs):
@@ -157,9 +162,9 @@ class Participant():
         for node in self._hdf._f_iter_nodes():
             if isinstance(node, tables.link.Link):
                 node = node()
-            if isinstance(node, tables.table.Table):
+            if isinstance(node, tables.group.Group):
                 node.__class__ = RadarTable
-            self.data[node.name] = node
+            self.data[node._v_name] = node
         return self.data
 
     def plot_time_span(self, source, timespan, ycols,
@@ -195,4 +200,113 @@ class ParticipantData(dict):
         print('hi')
 
 
+def project_from_csvs(folder_path: str,
+                      project_file: str = None,
+                      subprojects: list = None,
+                      schemas: ProjectSchemas = None,
+                      specifications: ProjectSpecs = None,
+                      use_schemas: bool = False,
+                      use_specs: bool = False,
+                      load_only_schemas: bool = False):
+    """ Creates a RADAR project HDF5 file containing data from CSV files.
+    The filesystem folders should be organised as in the RADAR-CNS FTP, with a
+    project folder containing participant folders, which each contain data
+    source/modality folders with CSV files inside.
+    Subprojects may be specified if the top level directory does not
+    contain participants as child folders
 
+    Parameters
+    __________
+    project_file (required): str or radar.io.hdf5.ProjectFile
+        The HDF5 file to copy data in to.
+    folder_path (required): str
+        Path to the filesystem project directory
+    subprojects (optional): list or None
+        A list of subprojects to look for participants in. Paths relative to
+        folder_path.
+    specifications (optional): dict / radar.util.avro.ProjectSchemas
+        A dictionary containing schema names and the associated RadarSchema
+        object. Default uses default package specifications.
+    specs_only (optional): Bool
+        Whether to only load data from modalities with a known specification.
+        If False, the datatype will be inferred.
+        Default is True
+    participant_subfolders (optional): Bool
+        Whether to recreate the heirarchy of folders underneath each
+        participant. Default is False.
+    custom_subfolder (optional): str
+        An optional folder under which to put all participant data modalities.
+        Default is '' (No subfolder)
+
+    Returns
+    _______
+    Project: radar.wrappers.Project
+        A RADAR project wrapper around the new HDF5 file.
+    """
+    def create_participants(subproject_relpath):
+        sp_dir = os.path.join(folder_path, subproject_relpath)
+        for ptc in participant_dirs(sp_dir):
+            if ptc not in project_file.get_node('/' + subproject_relpath):
+                ptc_hdf = project_file.create_group('/' + subproject_relpath, ptc)
+                setattr(ptc_hdf._v_attrs, 'RADAR_TYPE', 'PARTICIPANT')
+            participant_from_csvs(project_file=project_file,
+                                  where=subproject_relpath,
+                                  name=ptc,
+                                  folder_path=os.path.join(sp_dir, ptc),
+                                  schemas=schemas,
+                                  specifications=specifications,
+                                  use_schemas=use_schemas,
+                                  use_specs=use_specs,
+                                  load_only_schemas=load_only_schemas)
+
+
+    def participant_dirs(path):
+        return [f for f in os.listdir(path) if
+                os.path.isdir(os.path.join(path, f))]
+
+    if isinstance(project_file, str):
+        project_file = open_project_file(project_file, 'a')
+    if subprojects is None:
+        subprojects = []
+        create_participants('')
+
+    for sp in subprojects:
+        print(sp)
+        where, name = os.path.split(sp)
+        sp_hdf = project_file.create_group('/' + where, name)
+        setattr(sp_hdf._v_attrs, 'RADAR_TYPE', 'SUBPROJECT')
+        create_participants(sp)
+
+    return project_file
+
+
+def participant_from_csvs(project_file,
+                           where,
+                           name,
+                           folder_path,
+                           schemas: ProjectSchemas,
+                           specifications: ProjectSpecs,
+                           use_schemas: bool = True,
+                           use_specs: bool = False,
+                           load_only_schemas: bool = False,
+                           participant_subfolders=False,
+                           custom_subfolder=''):
+    folders = set([os.path.split(f)[0] for f in
+                   glob.glob(folder_path+'/**/*.csv', recursive=True)])
+    print(folder_path)
+    for modal_path in folders:
+        modal = os.path.split(modal_path)[-1]
+        print(modal)
+        if load_only_schemas:
+            if modal not in schemas:
+                print('{} not in schemas. Skipping...'.format(modal))
+                continue
+        df = read_folder(path=modal_path,
+                         schema=schemas[modal] if use_schemas else None,
+                         specification=specifications[modal] \
+                                 if use_specs else None)
+        print(where)
+        ptab = project_file.save_dataframe(df,
+                                           where='/' + where + '/' + name,
+                                           name=modal,
+                                           source_type='PASSIVE')

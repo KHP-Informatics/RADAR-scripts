@@ -3,8 +3,14 @@ import pandas as pd
 import numpy as np
 import glob, os, sys
 import csv
+from ..defaults import TIME_COLS
+from ..util.specifications import ModalitySpec
+from ..util.avro import RadarSchema
 
-def write_csv(arr, fname='', fieldnames='', **kwargs):
+def date_parser(timestamp):
+    return pd.Timestamp(float(timestamp))
+
+def write_csv(arr, fname: str = '', fieldnames: list = None, **kwargs):
     f = open(fname, 'w') if fname else sys.stdout
     writer = csv.writer(f, **kwargs)
     if fieldnames:
@@ -14,7 +20,7 @@ def write_csv(arr, fname='', fieldnames='', **kwargs):
     if f is not sys.stdout:
         f.close()
 
-def read_files(files, sort='value.time', index='value.time', **kwargs):
+def _read_files(files, sort: str = None, index: str = None, **kwargs):
     df = pd.concat(pd.read_csv(f, **kwargs) for f in files)
     if sort:
         df = df.sort_values(by=sort)
@@ -22,187 +28,36 @@ def read_files(files, sort='value.time', index='value.time', **kwargs):
         df = df.set_index(index)
     return df
 
-def read_folder(path, extension='.csv', sort=False, **kwargs):
+def _read_folder(path: str, extension: str = '.csv',
+                sort: str = None, **kwargs):
     files = glob.glob(os.path.join(path, '*' + extension))
     if files:
-        return read_csv_files(files, sort, **kwargs)
+        return _read_files(files, sort, **kwargs)
     print('No files found in', path)
-    return
+    return None
 
-def parse_date(timestamp):
-    return pd.Timestamp.fromtimestamp(float(timestamp))
+def read_folder(path: str, schema: RadarSchema = None,
+                specification: ModalitySpec = None, **kwargs):
 
-def read_csv_folder_type(path, data_type='android_phone_battery_level',
-                         extension='.csv', **kwargs):
-    shared_argu = {'parse_dates': ['value.time', 'value.timeReceived'],
-                   'date_parser': parse_date,
-                   'sort': ['value.time']}
+    def schema_spec_kwargs(schema=None, spec=None):
+        argdict = {}
+        if schema is None:
+            return argdict
+        cols = schema.get_col_names()
+        argdict['dtype'] = {col:dtype for col, dtype in
+                            zip(cols, schema.get_col_numpy_types())
+                            if col not in TIME_COLS}
+        argdict['usecols'] = cols
 
-    argu_dict = {
-        'android_phone_battery_level': {
-            'dtype': {
-                'value.batteryLevel': np.float64,
-                'value.isPlugged': np.bool_,
-                'value.status': str,
-            },
-            'usecols': [3, 4, 5, 6, 7],
-        },
-        'android_phone_acceleration':  {
-            'dtype': {
-                'value.x': np.float64,
-                'value.y': np.float64,
-                'value.z': np.float64,
-            },
-            'usecols': [3, 4, 5, 6, 7],
-        },
-        'android_phone_bluetooth_devices': {
-            'dtype': {
-                'value.pairedDevices': np.int_,
-                'value.nearbyDevices': np.int_,
-                'value.bluetoothEnabled': np.bool_
-            },
-            'usecols' : [3, 4, 5, 6, 7],
-        },
-        'android_phone_call': {
-            'dtype': {
-                'value.duration': np.float64,
-                'value.target': str,
-                'value.type': str,
-                'value.targetIsContact': np.bool_,
-                'value.targetIsNonNumberic': np.bool_,
-                'value.targetLength': np.int_,
-            },
-            'usecols': [3, 4, 5, 6, 7, 8, 9, 10],
-        },
-        'android_phone_contacts': {
-            'dtype': {
-                'value.contactsAdded': np.int_,
-                'value.contactsRemoved': np.int_,
-                'value.contacts': np.int_,
-            },
-            'usecols': [3, 4, 5, 6, 7],
-        },
-        'android_phone_gyroscope': {
-            'dtype': {
-                'value.x': np.float64,
-                'value.y': np.float64,
-                'value.z': np.float64,
-            },
-            'usecols': [3, 4, 5, 6, 7],
-        },
-        'android_phone_light': {
-            'dtype': {
-                'value.light': np.float64
-            },
-            'usecols': [3, 4, 5]
-        },
-        'android_phone_magnetic_field': {
-            'dtype': {
-                'value.x': np.float64,
-                'value.y': np.float64,
-                'value.z': np.float64,
-            },
-            'usecols': [3, 4, 5, 6, 7],
-        },
-        'android_phone_relative_location': {
-            'dtype': {
-                'value.provider': str,
-                'value.latitude': np.float64,
-                'value.longitude': np.float64,
-                'value.altitude': np.float64,
-                'value.accuracy': np.float64,
-                'value.speed': np.float64,
-                'value.bearing': np.float64,
-            },
-            'usecols': [3, 4, 5, 6, 7, 8, 9, 10, 11],
-        },
-        'android_phone_sms': {
-            'dtype': {
-                'value.target': str,
-                'value.type': str,
-                'value.length': np.int_,
-                'value.targetIsContact': np.bool_,
-                'value.targetIsNonNumeric': np.bool_,
-                'value.targetLength': np.int_,
-            },
-            'usecols': [3, 4, 5, 6, 7, 8, 9, 10],
-        },
-        'android_phone_sms_unread': {
-            'dtype': {
-                'value.unreadSms': np.int_,
-                },
-            'usecols': [3, 4, 5],
-        },
-        'android_phone_step_count': {
-            'dtype': {
-                'value.steps': np.int_,
-            },
-            'usecols': [3, 4, 5]
-        },
-        'android_phone_usage_event': {
-            'dtype': {
-                'value.packageName': str,
-                'value.categoryName': str,
-                '"value.categoryNameFetchTime"': np.float64,
-                'value.eventType': str,
-            },
-            'usecols': [3, 4, 5, 6, 7, 8],
-        },
-        'android_phone_user_interaction': {
-            'dtype': {
-                'value.interactionState': str,
-            },
-            'usecols': [3, 4, 5],
-        },
-        'android_empatica_e4_acceleration': {
-            'dtype': {
-                'value.x': np.float64,
-                'value.y': np.float64,
-                'value.z': np.float64,
-            },
-            'usecols': [2, 3, 4, 5, 6],
-        },
-        'android_empatica_e4_battery_level': {
-            'dtype': {
-                'value.batteryLevel': np.float64,
-            },
-            'usecols': [2, 3, 4],
-        },
-        'android_empatica_e4_blood_volume_pulse': {
-            'dtype': {
-                'value.bloodVolumePulse': np.float64,
-            },
-            'usecols': [2, 3, 4],
-        },
-        'android_empatica_e4_electrodermal_activity': {
-            'dtype': {
-                '"value.electroDermalActivity"': np.float64,
-            },
-            'usecols': [2, 3, 4],
-        },
-        'android_empatica_e4_inter_beat_interval': {
-            'dtype': {
-                'value.interBeatInterval': np.float64,
-            },
-            'usecols': [2, 3, 4],
-        },
-        'android_empatica_e4_empatica_e4_temperature': {
-            'dtype': {
-                'value.temperature': np.float64,
-            },
-            'usecols': [2, 3, 4],
-        },
-        'android_eeg_sync_pulse': {
-            'dtype': {
-                'value.width': np.float64,
-                'value.delay': np.float64,
-            },
-            'usecols': [2, 3, 4, 5],
-        },
-    }[data_type]
+        time_columns = TIME_COLS
+        if spec is not None:
+            time_columns = list(set((*TIME_COLS, *spec.time_columns())))
+        argdict['parse_dates'] = time_columns
+        argdict['date_parser'] = date_parser
+        return argdict
 
-    shared_argu.update(argu_dict)
-    if len(kwargs) > 1:
-        shared_argu.update(kwargs)
-    return read_csv_folder(path, extension, **shared_argu)
+    argdict = schema_spec_kwargs(schema, specification)
+    if kwargs is not None:
+        argdict.update(kwargs)
 
+    return _read_folder(path, **argdict)

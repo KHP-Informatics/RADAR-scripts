@@ -1,1 +1,1 @@
-from .wrappers import Project, Participant
+from .project import Project, Participant

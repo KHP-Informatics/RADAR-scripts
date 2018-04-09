@@ -13,22 +13,22 @@ AVRO_NP_TYPES = {
     'enum': np.object,
 }
 
-AVRO_HDF_TYPE = {
-    'null': 1,
-    'boolean': 1,
-    'int': 1,
-    'long': 1,
-    'float': 1,
-    'double': 1,
-    'bytes': 1,
-    'string': 1,
-    'enum': 1,
+SPEC_HDF_TYPE = {
+    'TIMESTAMP': tables.Int64Col(),
+    'DURATION': tables.Int64Col(),
 }
 
-NP_HDF_TYPES = {}
+NP_HDF_TYPES = {
+}
+
+def _datetime_to_int(arr):
+    return arr.astype('int64')
+def _obj_to_string(arr):
+    return arr.astype('<S')
 
 NP_HDF_CONVERSION = {
     '<M8[ns]': _datetime_to_int,
+    '|O': _obj_to_string,
 }
 
 class RecursiveDict(dict):
@@ -37,7 +37,7 @@ class RecursiveDict(dict):
 
     def __getitem__(self, key):
         if key == '/':
-            return self
+            return selF
         key_split = key.split('/')
         key = key_split.pop(0)
         if key == '':
@@ -97,10 +97,7 @@ class AttrRecDict(RecursiveDict):
         return repr_string
 
 
-def _datetime_to_int(arr):
-    return arr.astype('int64')
-
-def col_names(obj):
+def obj_col_names(obj):
     if isinstance(obj, np.ndarray):
         return list(obj.dtype.names)
     else:
@@ -148,4 +145,3 @@ def progress_bar(progress, total, prefix='Progress: ', suffix='', length=50):
     print(bar, end='\r')
     if progress >= total:
         print('')
-

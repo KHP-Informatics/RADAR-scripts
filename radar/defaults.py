@@ -13,6 +13,9 @@ _SCHEMA_DIR = os.path.join(_PACKAGE_DIR, 'radar_schemas', 'commons')
 _SCHEMA_KEY_FILE = None
 _DEVICE = 'android_'
 
+# Default time columns
+TIME_COLS = ('value.time', 'value.timeReceived')
+
 # Verbosity / debug
 VERBOSITY = 0
 def debug_wrapper(function):
