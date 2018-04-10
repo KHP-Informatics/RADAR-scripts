@@ -150,6 +150,9 @@ class Participant():
         self.parent = kwargs['parent'] if 'parent' in kwargs else None
         self._gen_data()
 
+    def __repr__(self):
+        return "Participant {}. of type {}".format(self.name type(self))
+
     def _gen_data(self):
         """ Generates data object for the participant from the hdf group
         Returns
@@ -157,6 +160,9 @@ class Participant():
         self.data: ParticipantData
             Returns the data object that it just set as self.data. Typically
             not used
+        ____
+        Notes: This should probably be refactored so that HDF5 specific
+        functions are put into a hdf5 specific class under .io
         """
         self.data = ParticipantData()
         for node in self._hdf._f_iter_nodes():
@@ -177,27 +183,13 @@ class Participant():
             visualise.interactive.add_events(fig, events)
         return fig
 
-    def df_from_data(self, source, cols=None):
-        table = getattr(self._hdf, source)
-        if cols is None:
-            cols = table.colnames
-
-        df = pd.DataFrame.from_records(table[:][[x for x in cols]])
-
-        for c in cols:
-            dtype = getattr(table.attrs, c)
-            if dtype != df[c].dtype:
-                df[c] = df[c].astype(dtype)
-
-        return df
-
 
 class ParticipantData(dict):
     def __repr__(self):
         return 'Participant data tables:\n' + ', '.join(list(self.keys()))
 
     def available(self):
-        print('hi')
+        print(self.__repr__())
 
 
 def project_from_csvs(folder_path: str,
@@ -231,13 +223,6 @@ def project_from_csvs(folder_path: str,
         Whether to only load data from modalities with a known specification.
         If False, the datatype will be inferred.
         Default is True
-    participant_subfolders (optional): Bool
-        Whether to recreate the heirarchy of folders underneath each
-        participant. Default is False.
-    custom_subfolder (optional): str
-        An optional folder under which to put all participant data modalities.
-        Default is '' (No subfolder)
-
     Returns
     _______
     Project: radar.wrappers.Project
@@ -277,7 +262,7 @@ def project_from_csvs(folder_path: str,
         setattr(sp_hdf._v_attrs, 'RADAR_TYPE', 'SUBPROJECT')
         create_participants(sp)
 
-    return project_file
+    return Project(project_file)
 
 
 def participant_from_csvs(project_file,
