@@ -151,7 +151,7 @@ class Participant():
         self._gen_data()
 
     def __repr__(self):
-        return "Participant {}. of type {}".format(self.name type(self))
+        return "Participant {}. of type {}".format(self.name, type(self))
 
     def _gen_data(self):
         """ Generates data object for the participant from the hdf group
