@@ -1,0 +1,17 @@
+#==================== Personal Health Questionnaire Depression Scale (PHQ-8) ======================#
+name: aRMT
+vendor: App
+model: aRMT-App
+version: v1
+assessment_type: QUESTIONNAIRE
+doc: aRMT Questionnaires definition. Includes Personal Health Questionnaire Depression Scale (PHQ-8), Experience sampling method (ESM) and RSES.
+data:
+  - type: PHQ8
+    topic: questionnaire_phq8
+    value_schema: .active.questionnaire.Questionnaire
+  - type: ESM
+    topic: questionnaire_esm
+    value_schema: .active.questionnaire.Questionnaire
+  - type: RSES
+    topic: questionnaire_rses
+    value_schema: .active.questionnaire.Questionnaire

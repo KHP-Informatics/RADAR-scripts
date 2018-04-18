@@ -11,7 +11,7 @@ def plot(dataframe, datacol='value.x'):
         plt.xticks(visible=False)
         plt.yticks(visible=False)
         plt.subplots_adjust(hspace=0)
-        plt.ylim(0, 3)
+        plt.ylim(0, 1)
         ax.legend_.remove()
         z = z + 1
     plt.show()
