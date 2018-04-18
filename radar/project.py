@@ -5,7 +5,7 @@ import tables
 import pandas as pd
 from . import visualise
 from .common import AttrRecDict, progress_bar
-from .io.hdf5 import ProjectFile, RadarTable, open_project_file
+from .io.hdf5 import ProjectFile, RadarDataGroup, open_project_file
 from .io.csv import read_folder
 from .util.specifications import ProjectSpecs
 from .util.avro import ProjectSchemas
@@ -169,7 +169,7 @@ class Participant():
             if isinstance(node, tables.link.Link):
                 node = node()
             if isinstance(node, tables.group.Group):
-                node.__class__ = RadarTable
+                node.__class__ = RadarDataGroup
             self.data[node._v_name] = node
         return self.data
 

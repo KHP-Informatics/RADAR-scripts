@@ -24,9 +24,9 @@ class ProjectFile(tables.File):
                                **kwargs)
         self.subprojects = subprojects
 
-    def create_radar_table(self, where, name, description=None, title='',
-                     filters=_FILTER, createparents=True, **kwargs):
-        """ Create a new radar table
+    def create_radar_data_group(self, where, name, description=None, title='',
+                                filters=_FILTER, createparents=True, **kwargs):
+        """ Create a new radar data group
         Parameters
         __________
 
@@ -36,8 +36,8 @@ class ProjectFile(tables.File):
         parentnode = self._get_or_create_path(where, createparents)
         tables.file._checkfilters(filters)
         new = False if name in parentnode else True
-        ptobj = RadarTable(parentnode, name, title=title,
-                           filters=filters, new=True, **kwargs)
+        ptobj = RadarDataGroup(parentnode, name, title=title,
+                               filters=filters, new=True, **kwargs)
         return ptobj
 
     def create_table_schema(self, where, name, schema, createparents=True,
@@ -61,24 +61,29 @@ class ProjectFile(tables.File):
 
 
 class ParticipantGroup(tables.Group):
-    """ A Pytables group object for use with RADAR participants.
+    """ A Pytables group object for use with RADAR participant data.
     Currently a pure Pytables Group object, here in case there is use in the
     future.
     """
     pass
 
 
-class RadarTable(tables.Group):
-    """ A Table object for RADAR data
-    Parameters
-    _________
+class RadarDataGroup(tables.Group):
+    """ A Group object for storing RADAR data.
+    Each column (i.e. array) is unrelated. It is recommended that columns are
+    written to be the same length and rows correspond to the same timepoint. The
+    advantage of a RadarDataGroup over a standard RadarTable is that it is
+    easier to add and remove columns and to write data in an asynchronous
+    manner.
+
     See also
     ________
-    tables.Table : For more information on the PyTables Table object
+    tables.Group : For more information on the PyTables Group object
+    radar.io.hdf5.RadarTable : A table based storage object
     """
     def __init__(self, parentnode, name, filters=_FILTER,
                  obj=None, overwrite=False, **kwargs):
-        super(RadarTable, self).__init__(parentnode, name, filters=_FILTER, **kwargs)
+        super(RadarDataGroup, self).__init__(parentnode, name, filters=_FILTER, **kwargs)
         if obj is not None:
             self.insert_dataframe(obj, overwrite=overwrite)
 
@@ -136,12 +141,12 @@ class RadarTable(tables.Group):
             May be a column name, list of column names, a slice, or a
             combination of a slice and column name(s).
             e.g.
-            RadarTable[0:100] for index 0 to 100 of all columns.
-            RadarTable['c1'] for the entirety of column c1.
-            RadarTable[['c1', 'c2']] for the entireties of columns 'c1' and
+            RadarDataGroup[0:100] for index 0 to 100 of all columns.
+            RadarDataGroup['c1'] for the entirety of column c1.
+            RadarDataGroup[['c1', 'c2']] for the entireties of columns 'c1' and
                 'c2'
-            RadarTable['c1', 5:25] for index 5 to 25 of column 'c1'
-            RadarTable[['c1', 'c3'], -25:] for the final 25 values of columns
+            RadarDataGroup['c1', 5:25] for index 5 to 25 of column 'c1'
+            RadarDataGroup[['c1', 'c3'], -25:] for the final 25 values of columns
                 'c1' and 'c3'.
 
         Returns
@@ -164,9 +169,9 @@ class RadarTable(tables.Group):
         item: slice, list
             Must be a slice or a slice and column name(s)
             e.g.
-            RadarTable[0:100] = df
-            RadarTable[0:100, 'c1'] = df
-            RadarTable[0:100, ['c1', 'c2', 'c3']] = df
+            RadarDataGroup[0:100] = df
+            RadarDataGroup[0:100, 'c1'] = df
+            RadarDataGroup[0:100, ['c1', 'c2', 'c3']] = df
         df: pandas.DataFrame
             A dataframe with the same columns as the table/given as the item.
             Alternatively, if only one column is selected, may be a numpy array
@@ -192,11 +197,11 @@ class RadarTable(tables.Group):
 
     def insert_dataframe(self, df, overwrite=False, attrs=None):
         for col in obj_col_names(df):
-            self.insert_array(df[col], name=col, attrs=attrs)
+            self.insert_array(df[col].values, name=col, attrs=attrs)
 
     def append_dataframe(self, df, create_columns=True):
         for col in obj_col_names(df):
-            self.append_array(df[col], name=col,
+            self.append_array(df[col].values, name=col,
                               create_column=create_columns)
 
     def insert_array(self, arr, name, overwrite=False, attrs=None):
@@ -206,9 +211,6 @@ class RadarTable(tables.Group):
             else:
                 raise ValueError(('There is already a column "{}" in table'
                                   '{}'.format(name, self._v_name)))
-
-        if isinstance(arr, pd.Series):
-            arr = arr.values
 
         dt = arr.dtype.str
         if attrs is not None:
@@ -231,7 +233,11 @@ class RadarTable(tables.Group):
                                   'and create_column is set to '
                                   'False'.format(name)))
         else:
-            self._f_getChild(name).append(arr)
+            self._f_get_child(name).append(arr)
+
+class RadarTable(tables.Table):
+    """ A Pytables table object for use with RADAR participant data.
+    """
 
 
 def open_project_file(filename, mode='r', title='', root_uep='/',
