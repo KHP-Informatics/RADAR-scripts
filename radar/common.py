@@ -1,43 +1,19 @@
 import numpy as np
 import tables
 
-AVRO_NP_TYPES = {
-    'null': None,
-    'boolean': np.bool_,
-    'int': np.int32,
-    'long': np.int64,
-    'float': np.float32,
-    'double': np.float64,
-    'bytes': np.bytes_,
-    'string': np.object,
-    'enum': np.object,
-}
-
-SPEC_HDF_TYPE = {
-    'TIMESTAMP': tables.Int64Col(),
-    'DURATION': tables.Int64Col(),
-}
-
-NP_HDF_TYPES = {
-}
-
-def _datetime_to_int(arr):
-    return arr.astype('int64')
-def _obj_to_string(arr):
-    return arr.astype('<S')
-
-NP_HDF_CONVERSION = {
-    '<M8[ns]': _datetime_to_int,
-    '|O': _obj_to_string,
-}
-
 class RecursiveDict(dict):
+    """ A dictionary that can directly access items from nested dictionaries
+    using the '/' character.
+    Example:
+        d = RecursiveDict((('inner', {'innerkey':'innerval'}),))
+        d['inner/innerkey'] returns 'innerval'
+    """
     def __init__(self, *args, **kwargs):
         dict.__init__(self, *args, **kwargs)
 
     def __getitem__(self, key):
         if key == '/':
-            return selF
+            return self
         key_split = key.split('/')
         key = key_split.pop(0)
         if key == '':
@@ -47,12 +23,13 @@ class RecursiveDict(dict):
         else:
             return dict.__getitem__(self, key)
 
-
     def _get_x(self, xattr):
         out = []
         for x, v in zip(getattr(self, xattr)(), self.values()):
             if isinstance(v, RecursiveDict):
                 out.extend(v._get_x(xattr))
+            elif isinstance(v, dict) & hasattr(v, xattr):
+                out.extend(getattr(v, xattr)())
             else:
                 out.append(x)
         return out
@@ -72,7 +49,20 @@ class RecursiveDict(dict):
     def __len__(self):
         return len(self._get_keys())
 
+
 class AttrRecDict(RecursiveDict):
+    """ A dictionary, based on RecursiveDict, that allows recurisve access to
+    nested dictionary items using object attributes.
+    Only the final level / leaf dictionaries will have attribute accessible
+    items. Primarily used to access subproject participants from a higher level
+    project.
+    Example:
+        d = AttrRecDict((('inner', {'innerkey':'innerval'}),))
+        d.inner raises an AttributeError
+        d.innerkey returns 'innerval'
+        d['inner'] returns {'inner': 'innerkey'}
+        d['inner/innerkey'] returns 'innerval
+    """
     def __getattr__(self, name):
         if name not in [x for x in self._get_keys()]:
             raise AttributeError(
@@ -98,6 +88,9 @@ class AttrRecDict(RecursiveDict):
 
 
 def obj_col_names(obj):
+    """ Returns a list of column names from a numpy record array or pandas
+    dataframe
+    """
     if isinstance(obj, np.ndarray):
         return list(obj.dtype.names)
     else:
@@ -136,6 +129,22 @@ def iter_repeater(x):
     return repeat
 
 def progress_bar(progress, total, prefix='Progress: ', suffix='', length=50):
+    """ Prints a progress bar on the terminal line, which can be
+    updated/overwritten with subsequent calls
+    Parameters
+    _________
+    progress: int or float
+        A number corresponding to the current progress
+    total: int or float
+        The number at which the task will be 100% complete.
+        I.e. 100 * progress / total should give the percentage complete.
+    prefix: str (optional)
+        A string to print preceeding the bar
+    suffix: str (optional)
+        A string to print after the bar
+    length: int (optional)
+        The character length of the bar
+    """
     completed = int((progress/total)*length)
     bar = "{pre} |{comp}{empty}| {suff}".format(
         pre=prefix,

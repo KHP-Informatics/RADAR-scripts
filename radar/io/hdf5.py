@@ -3,9 +3,18 @@ import os
 import tables
 import numpy as np
 import pandas as pd
-from ..common import SPEC_HDF_TYPE, NP_HDF_CONVERSION, obj_col_names
-from ..common import progress_bar
+from ..common import obj_col_names, progress_bar
 from ..defaults import _FILTER
+
+SPEC_HDF_TYPE = {
+    'TIMESTAMP': tables.Int64Col(),
+    'DURATION': tables.Int64Col(),
+}
+
+NP_HDF_CONVERTERS = {
+    '<M8[ns]': lambda x=None: 'int64',
+    '|O': lambda x: 'S' + str(max(map(len, x))),
+}
 
 
 class ProjectFile(tables.File):
@@ -19,13 +28,14 @@ class ProjectFile(tables.File):
 
     def __init__(self, filename, mode='r', title='', root_uep='/',
                  filters=_FILTER, subprojects=None, **kwargs):
-        super(ProjectFile, self).__init__(filename=filename, mode=mode, title=title,
-                               root_uep=root_uep, filters=filters,
-                               **kwargs)
+        super(ProjectFile, self).__init__(filename=filename, mode=mode,
+                                          title=title, root_uep=root_uep,
+                                          filters=filters, **kwargs)
         self.subprojects = subprojects
 
     def create_radar_data_group(self, where, name, description=None, title='',
-                                filters=_FILTER, createparents=True, **kwargs):
+                                filters=_FILTER, createparents=True, obj=None,
+                                **kwargs):
         """ Create a new radar data group
         Parameters
         __________
@@ -35,10 +45,51 @@ class ProjectFile(tables.File):
         """
         parentnode = self._get_or_create_path(where, createparents)
         tables.file._checkfilters(filters)
-        new = False if name in parentnode else True
+        new = name not in parentnode
         ptobj = RadarDataGroup(parentnode, name, title=title,
-                               filters=filters, new=True, **kwargs)
+                               filters=filters, new=new, **kwargs)
+        if obj:
+            ptobj.append_dataframe(obj)
         return ptobj
+
+
+    def create_radar_table(self, where, name, description=None, title='',
+                     filters=_FILTER, expectedrows=1000000,
+                     chunkshape=None, byteorder=None,
+                     createparents=True, obj=None):
+        """ Create a new radar table
+        Essentially a copy of tables.File.create_table()
+        Parameters
+        __________
+        See also
+        ________
+        tables.File.create_table()
+        """
+        if obj is not None:
+            if isinstance(obj, np.ndarray):
+                pass
+            elif isinstance(obj, pd.DataFrame):
+                obj = self
+            else:
+                raise TypeError('Invalid obj type %r' %obj)
+            descr, _ = tables.description.descr_from_dtype(obj.dtype)
+            if (description is not None and
+                tables.description.dtype_from_descr(description) != obj.dtype):
+                raise TypeError('The description parameter is not consistent ',
+                            'with the data object')
+            description = descr
+        parentnode = self._get_or_create_path(where, createparents)
+        if description is None:
+            raise ValueError('No description provided')
+        tables.file._checkfilters(filters)
+
+        ptobj = RadarTable(parentnode, name, description=description,
+                           title=title, filters=filters,
+                           expectedrows=expectedrows, chunkshape=chunkshape,
+                           byteorder=byteorder)
+        if obj is not None:
+            ptobj.append(obj)
+
 
     def create_table_schema(self, where, name, schema, createparents=True,
                             **kwargs):
@@ -71,8 +122,8 @@ class ParticipantGroup(tables.Group):
 class RadarDataGroup(tables.Group):
     """ A Group object for storing RADAR data.
     Each column (i.e. array) is unrelated. It is recommended that columns are
-    written to be the same length and rows correspond to the same timepoint. The
-    advantage of a RadarDataGroup over a standard RadarTable is that it is
+    written to be the same length and rows correspond to the same timepoint.
+    The advantage of a RadarDataGroup over a standard RadarTable is that it is
     easier to add and remove columns and to write data in an asynchronous
     manner.
 
@@ -83,7 +134,8 @@ class RadarDataGroup(tables.Group):
     """
     def __init__(self, parentnode, name, filters=_FILTER,
                  obj=None, overwrite=False, **kwargs):
-        super(RadarDataGroup, self).__init__(parentnode, name, filters=_FILTER, **kwargs)
+        super(RadarDataGroup, self).__init__(parentnode, name,
+                                             filters=_FILTER, **kwargs)
         if obj is not None:
             self.insert_dataframe(obj, overwrite=overwrite)
 
@@ -217,8 +269,8 @@ class RadarDataGroup(tables.Group):
             attrs['np_dtype'] = dt
         else:
             attrs = {'np_dtype': dt}
-        if dt in NP_HDF_CONVERSION:
-            arr = NP_HDF_CONVERSION[dt](arr)
+        if dt in NP_HDF_TYPES:
+            arr = arr.astype(NP_HDF_TYPES[dt])
 
         self._v_file.create_earray(self, name=name, title=name, obj=arr)
         for k, v in attrs.items():
@@ -238,6 +290,10 @@ class RadarDataGroup(tables.Group):
 class RadarTable(tables.Table):
     """ A Pytables table object for use with RADAR participant data.
     """
+    def append_dataframe(df, *args, **kwargs):
+        df = _df_to_usable(df)
+
+    pass
 
 
 def open_project_file(filename, mode='r', title='', root_uep='/',
@@ -345,8 +401,8 @@ def _descr_from_spec(modality_spec):
     """ Generates a table description from a RADAR schema.
     Parameters
     _________
-    radar_schema : RadarSchema object
-        A RadarSchema object from util.avro.RadarSchema of this package
+    modality_spec : RadarSpec object
+        A RadarSpec object from radar.util.specifications
 
     Returns
     _______
@@ -360,48 +416,15 @@ def _descr_from_spec(modality_spec):
     raise NotImplementedError('TODO: make dict')
 
 
-def dataframe_description(df):
-    descr = {}
-    for col, dt in zip(df.columns, df.dtypes):
-        if dt == 'O':
-            # Object / string
-            descr[col] = tables.StringCol(df[col].map(len).max())
-        elif dt == 'bool':
-            descr[col] = tables.BoolCol()
-        elif dt == 'int32':
-            descr[col] = tables.Int32Col()
-        elif dt == 'int64':
-            descr[col] = tables.Int64Col()
-        elif dt == 'datetime64[ns]':
-            descr[col] = tables.Int64Col()
-        elif dt == 'float32':
-            descr[col] = tables.Float32Col()
-        elif dt == 'float64':
-            descr[col] = tables.Float64Col()
-        elif dt == 'bytes':
-            descr[col] = tables.StringCol(df[col].map(len).max())
-        else:
-            raise ValueError('Unimplemented dtype %s', dt)
-
-    return descr
-
-def _df_to_usable(df):
+def _df_to_usable(df, converters=NP_HDF_CONVERTERS):
     if type(df.index) is not pd.RangeIndex:
-        df = df.reset_index()
-    cols = df.columns
-    dtypes = {}
-    for c in cols:
-        dtypes[c] = df[c].dtype.str
-        if 'datetime64' in str(df[c].dtype):
-            df[c] = df[c].astype('int64')
-    rec = df.to_records(index=False)
-    rec_dtypes = []
-    for name,dtype in rec.dtype.descr:
-        if dtype == '|O':
-            rec_dtypes.append('S' + str(df[name].map(len).max()))
-        else:
-            rec_dtypes.append(dtype)
-    rec = np.rec.fromrecords(rec, formats=rec_dtypes,
-                             names=rec.dtype.names)
+        rec = df.to_records()
+    else:
+        rec = df.to_records(index=False)
 
-    return (rec, dtypes)
+    dtypes = []
+    for name, dt in rec.dtype.descr:
+        dtypes.append(converters[dt](rec[name])) if dt in converters \
+                else dtypes.append(dt)
+
+    return np.rec.fromrecords(rec, formats=dtypes, names=rec.dtype.names)

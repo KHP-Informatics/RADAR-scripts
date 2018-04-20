@@ -3,8 +3,19 @@ from avro import schema
 import pandas as pd
 import numpy as np
 import glob, os, json
-from ..common import AVRO_NP_TYPES
 from ..defaults import _SCHEMA_DIR, _SCHEMA_KEY_FILE, _DEVICE
+
+AVRO_NP_TYPES = {
+    'null': None,
+    'boolean': np.bool_,
+    'int': np.int32,
+    'long': np.int64,
+    'float': np.float32,
+    'double': np.float64,
+    'bytes': np.bytes_,
+    'string': np.object,
+    'enum': np.object,
+}
 
 class ProjectSchemas(dict):
     def __init__(self, schema_dir=_SCHEMA_DIR, key_schema=_SCHEMA_KEY_FILE):
