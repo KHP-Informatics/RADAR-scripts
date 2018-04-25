@@ -287,13 +287,13 @@ class RadarDataGroup(tables.Group):
         else:
             self._f_get_child(name).append(arr)
 
+
 class RadarTable(tables.Table):
     """ A Pytables table object for use with RADAR participant data.
     """
     def append_dataframe(df, *args, **kwargs):
         df = _df_to_usable(df)
-
-    pass
+        self.append(df)
 
 
 def open_project_file(filename, mode='r', title='', root_uep='/',
