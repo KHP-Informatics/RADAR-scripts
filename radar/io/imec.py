@@ -56,12 +56,8 @@ class Imec(object):
         index = slice(start_idx, stop_idx, downsample_rate)
         return self.get_df(modality, index)
 
-    def plot_timespan(self, modality, start_time, stop_time):
-        return self.plot_timespan_downsampled(modality=modality,
-                start_time=start_time, stop_time=stop_time, downsample_rate=1)
-
-    def plot_timespan_downsampled(self, modality, start_time, stop_time,
-                                  downsample_rate):
+    def plot_timespan(self, modality, start_time, stop_time,
+                                  downsample_rate=None):
         df = self.get_df_time(modality, start_time,
                                stop_time, downsample_rate)
         df.set_index('time', inplace=True)
