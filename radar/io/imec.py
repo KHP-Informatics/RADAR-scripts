@@ -1,128 +1,91 @@
 #!/usr/bin/env python3
-import pandas as pd
-import numpy as np
 import tables
-from .hdf5 import open_project
-from collections import OrderedDict as od
+import numpy as np
+import pandas as pd
+import dask.array as da
 
-IMEC_TABLE_ACC = od((
-    ('value.time', tables.Int64Col()),
-    ('value.x', tables.Float32Col()),
-    ('value.y', tables.Float32Col()),
-    ('value.z', tables.Float32Col()),
-))
-IMEC_TABLE_BATTERY = od((
-    ('value.time', tables.Int64Col()),
-    ('value.charge', tables.Float32Col()),
-))
-IMEC_TABLE_ECG = od((
-    ('value.time', tables.Int64Col()),
-    ('value.ecg', tables.Float32Col()),
-    ('value.emg', tables.Float32Col()),
-    ('value.gsr_1', tables.Float32Col()),
-    ('value.gsr_2', tables.Float32Col()),
-))
-IMEC_TABLE_PIE = od((
-    ('value.time', tables.Int64Col()),
-    ('value.pie', tables.Float32Col()),
-))
-IMEC_TABLE_TEMP = ((
-    ('value.time', tables.Int64Col()),
-    ('value.temperature', tables.Float32Col()),
-))
-IMEC_TABLES = od((
-    'imec_acceleration', (IMEC_TABLE_ACC, od((('value.time', '<M8[ns]'),
-                                              ('value.x', '<f4'),
-                                              ('value.y', '<f4'),
-                                              ('value.z', '<f4')))),
-    'imec_battery', (IMEC_TABLE_BATTERY, od((('value.time', '<M8[ns]'),
-                                             ('value.charge', '<f4')))),
-    'imec_electrodes', (IMEC_TABLE_ECG, od((('value.time', '<M8[ns]'),
-                                            ('value.ecg', '<f4'),
-                                            ('value.emg', '<f4'),
-                                            ('value.gsr_1', '<f4'),
-                                            ('value.gsr_2', '<f4')))),
-    'imec_pie', (IMEC_TABLE_PIE, od((('value.time', '<M8[ns]'),
-                                     ('value.pie', '<f4')))),
-    'imec_temp', (IMEC_TABLE_TEMP, od((('value.time', '<M8[ns]'),
-                                       ('value.temperature', '<f4'))))
-))
+class Imec(object):
+    def __init__(self, imec_file_path):
+        self._h5 = tables.File(imec_file_path)
+        self._radar = self._h5.root.Devices.Radar
 
-IMEC_DATA_NAMES = {'imec_acceleration': ['ACC-X', 'ACC-Y', 'ACC-Z'],
-                   'imec_battery': ['Battery'],
-                   'imec_electrodes': ['ECG', 'EMG', 'GSR-1', 'GSR-2'],
-                   'imec_pie': ['PIE'],
-                   'imec_temp': ['Temp']}
+        if hasattr(self._radar._v_attrs, '#DateTime'):
+            self._start_time = pd.Timestamp(bytes.decode(
+                getattr(self._radar._v_attrs, '#DateTime')))
+        else:
+            raise ValueError('The given IMEC file does not have a date/time')
+        self._h5arrs = {k: getattr(self._radar.Signal, k).Data
+                        for k in self._radar.Signal._v_children}
+        self.modalities = {
+                'Accelerometer': ['ACC-X', 'ACC-Y', 'ACC-Z'],
+                'Battery': ['Battery'],
+                'ECG': ['ECG'],
+                'EMG': ['EMG'],
+                'GSR': ['GSR-1', 'GSR-2'],
+                'PIE': ['PIE'],
+                'Temp': ['Temp'],
+                }
+        self._freqs = {}
+        self._timecols = {}
+        for modal, arrs in self.modalities.items():
+            self._timecols[modal] = self._make_timecol(arrs[0])
+            self._freqs[modal] = self.signal_freq(arrs[0])
 
-def make_tables(target_hdf, target_where):
-    out_dict = {}
-    for title, table in IMEC_TABLES.items():
-        print(title)
-        print(target_where)
-        out_dict[title] = target_hdf.create_radar_table(
-            where=target_where, name=title, description=table[0], title=title)
-        for k, v in table[1].items():
-            setattr(out_dict[title].attrs, k, v)
-        setattr(out_dict[title].attrs, 'NAME', title)
-        setattr(out_dict[title].attrs, 'RADAR_TYPE', 'DATA')
-    return out_dict
+    def signal_freq(self, key):
+        return float(getattr(getattr(self._radar.Signal, key)._v_attrs,
+                             '#Freq'))
 
-def data_generator(table, cols=None, batch_size=None):
-    total_len = len(table)
-    if batch_size is None:
-        batch_size = table.chunkshape[0]
-    i = 0
-    while i < total_len:
-        yield table[i:i+batch_size][cols]
-        i += batch_size
+    def _make_timecol(self, arr):
+        col_len = len(self._h5arrs[arr])
+        col_freq = self.signal_freq(arr)
+        chunks = self._h5arrs[arr].chunkshape
+        col = da_date_idx(self._start_time, col_len, col_freq, chunks)
+        return col
 
-def transfer_hdf(imec_hdf, target_hdf, target_where='', batch_size=None,
-                 start_datetime=None):
-    def get_freq(signal, name):
-        return float(getattr(getattr(signal, name)._v_attrs, '#Freq'))
+    def get_df(self, modality, index):
+        cols = {'time': self._timecols[modality][index].compute()}
+        cols.update({name: self._h5arrs[name][index]
+                     for name in self._modalities[modality]})
+        return pd.DataFrame(cols)
 
-    def make_time_idx(inv_freq_ns, i, length):
-        run_time = pd.Timedelta(int(inv_freq_ns*i))
-        idx = pd.to_timedelta(np.tile(inv_freq_ns, length).cumsum()) + \
-                start_datetime + run_time
-        return idx
+    def get_df_time(self, modality, start_time, stop_time, downsample_rate=None):
+        dateidx = DateToIdx(self._start_time, self._freqs[modality])
+        start_idx = dateidx(start_time)
+        start_idx = 0 if start_idx < 0 else start_idx
+        stop_idx = dateidx(stop_time)
+        index = slice(start_idx, stop_idx, downsample_rate)
+        return self.get_df(modality, index)
 
-    def append_tab(outtab, data_names, col_names):
-        i = 0
-        freq = get_freq(signal, data_names[0])
-        inv_freq_ns = (1/freq)*10**9
-        col_gens = [data_generator(getattr(signal, name).Data,
-                                   batch_size=batch_size) for name in data_names]
-        for cols in zip(*col_gens):
-            print(i)
-            time_col = make_time_idx(inv_freq_ns, i, len(cols[0][0]))
-            df_dict = od([(name, data[0]) for name, data
-                          in zip(col_names, cols)])
+    def plot_timespan(self, modality, start_time, stop_time):
+        return self.plot_timespan_downsampled(modality=modality,
+                start_time=start_time, stop_time=stop_time, downsample_rate=1)
 
-            df_dict['time'] = time_col
-            df = pd.DataFrame(df_dict)
-            outtab.append(df.to_records(index=False))
-            i += len(cols[0][0])
+    def plot_timespan_downsampled(self, modality, start_time, stop_time,
+                                  downsample_rate):
+        df = self.get_df_time(modality, start_time,
+                               stop_time, downsample_rate)
+        df.set_index('time', inplace=True)
+        return df.plot()
 
-    if not isinstance(imec_hdf, tables.File):
-        imec_hdf = open_project(imec_hdf, 'r')
 
-    if isinstance(target_hdf, tables.Group):
-        target_where = '/'.join([target_hdf._v_pathname, target_where])
-        target_hdf = target_hdf._v_file
-    elif isinstance(target_hdf, str):
-        target_hdf = open_project(target_hdf, 'a')
+class IdxToDate():
+    def __init__(self, start, freq):
+        self.start = pd.Timestamp(start, 'ns').asm8.astype('int64')
+        self.freq = freq
+    def __call__(self, x):
+        return (self.start + (int(1e9 / self.freq) * x)).astype('M8[ns]')
 
-    if start_datetime is None:
-        dt_string = getattr(imec_hdf.root.Devices.Radar._v_attrs, '#DateTime')
-        dt_string = dt_string.decode('utf-8')
-        start_datetime = pd.to_datetime(dt_string)
 
-    target_tables = make_tables(target_hdf, target_where)
-    signal = imec_hdf.root.Devices.Radar.Signal
+class DateToIdx():
+    def __init__(self, start, freq):
+        self.start = pd.Timestamp(start, 'ns').asm8.astype('int64')
+        self.freq = freq
 
-    for modality in IMEC_TABLES:
-        print(modality)
-        append_tab(target_tables[modality],
-                   IMEC_DATA_NAMES[modality],
-                   set(IMEC_TABLES[modality][1].keys()).difference(['time']))
+    def __call__(self, date):
+        date = pd.Timestamp(date, 'ns').asm8.astype('int64')
+        idx = (((date - self.start) / 1e9) * self.freq)
+        return int(round(idx))
+
+def da_date_idx(start, N, freq, chunks):
+    return da.fromfunction(IdxToDate(start, freq), shape=(N,),
+                           chunks=chunks, dtype='M8[ns]')

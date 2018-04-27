@@ -119,6 +119,14 @@ class ParticipantGroup(tables.Group):
     pass
 
 
+class RadarTable(tables.Table):
+    """ A Pytables table object for use with RADAR participant data.
+    """
+    def append_dataframe(df, *args, **kwargs):
+        df = _df_to_usable(df)
+        self.append(df)
+
+
 class RadarDataGroup(tables.Group):
     """ A Group object for storing RADAR data.
     Each column (i.e. array) is unrelated. It is recommended that columns are
@@ -286,14 +294,6 @@ class RadarDataGroup(tables.Group):
                                   'False'.format(name)))
         else:
             self._f_get_child(name).append(arr)
-
-
-class RadarTable(tables.Table):
-    """ A Pytables table object for use with RADAR participant data.
-    """
-    def append_dataframe(df, *args, **kwargs):
-        df = _df_to_usable(df)
-        self.append(df)
 
 
 def open_project_file(filename, mode='r', title='', root_uep='/',
