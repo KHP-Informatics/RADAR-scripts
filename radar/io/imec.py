@@ -57,7 +57,7 @@ class Imec(object):
         index = slice(start_idx, stop_idx, None)
         df = self.get_df(modality, index)
         if sample_rate is not None:
-            df = df.resample(sample_rate, on='time').mean()
+            df = df.resample(sample_rate, on='time').pad()
         else:
             df.set_index('time', inplace=True)
         return df
