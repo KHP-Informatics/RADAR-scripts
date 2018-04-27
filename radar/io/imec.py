@@ -56,10 +56,9 @@ class Imec(object):
         stop_idx = dateidx(stop_time)
         index = slice(start_idx, stop_idx, None)
         df = self.get_df(modality, index)
+        df.set_index('time', inplace=True)
         if sample_rate is not None:
             df = df.resample(sample_rate, on='time').pad()
-        else:
-            df.set_index('time', inplace=True)
         return df
 
     def plot_timespan(self, modality, start_time, stop_time, sample_rate=None):
