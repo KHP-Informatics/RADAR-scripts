@@ -48,18 +48,19 @@ class Imec(object):
                      for name in self.modalities[modality]})
         return pd.DataFrame(cols)
 
-    def get_df_time(self, modality, start_time, stop_time, downsample_rate=None):
+    def get_df_time(self, modality, start_time, stop_time, sample_rate=None):
         dateidx = DateToIdx(self._start_time, self._freqs[modality])
         start_idx = dateidx(start_time)
         start_idx = 0 if start_idx < 0 else start_idx
         stop_idx = dateidx(stop_time)
-        index = slice(start_idx, stop_idx, downsample_rate)
-        return self.get_df(modality, index)
+        index = slice(start_idx, stop_idx, None)
+        df = self.get_df(modality, index)
+        if sample_rate is not None:
+            df = df.resample(sample_rate, on='time').mean()
+        return df
 
-    def plot_timespan(self, modality, start_time, stop_time,
-                                  downsample_rate=None):
-        df = self.get_df_time(modality, start_time,
-                               stop_time, downsample_rate)
+    def plot_timespan(self, modality, start_time, stop_time, sample_rate=None):
+        df = self.get_df_time(modality, start_time, stop_time, sample_rate)
         df.set_index('time', inplace=True)
         return df.plot()
 
