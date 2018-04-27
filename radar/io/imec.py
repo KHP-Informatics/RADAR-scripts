@@ -3,6 +3,7 @@ import tables
 import numpy as np
 import pandas as pd
 import dask.array as da
+import matplotlib.pyplot as plt
 
 class Imec(object):
     def __init__(self, imec_file_path):
@@ -63,7 +64,10 @@ class Imec(object):
 
     def plot_timespan(self, modality, start_time, stop_time, sample_rate=None):
         df = self.get_df_time(modality, start_time, stop_time, sample_rate)
-        return df.plot()
+        fig = plt.figure()
+        plt.plot(df)
+        plt.legend(df.columns)
+        return fig
 
 
 class IdxToDate():
