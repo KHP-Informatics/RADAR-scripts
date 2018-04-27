@@ -45,7 +45,7 @@ class Imec(object):
     def get_df(self, modality, index):
         cols = {'time': self._timecols[modality][index].compute()}
         cols.update({name: self._h5arrs[name][index]
-                     for name in self._modalities[modality]})
+                     for name in self.modalities[modality]})
         return pd.DataFrame(cols)
 
     def get_df_time(self, modality, start_time, stop_time, downsample_rate=None):
