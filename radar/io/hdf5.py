@@ -3,7 +3,7 @@ import os
 import tables
 import numpy as np
 import pandas as pd
-from ..common import obj_col_names, progress_bar
+from ..common import obj_col_names, progress_bar, AttrRecDict, ParticipantData
 from ..defaults import _FILTER
 
 SPEC_HDF_TYPE = {
@@ -31,7 +31,7 @@ class ProjectFile(tables.File):
         super(ProjectFile, self).__init__(filename=filename, mode=mode,
                                           title=title, root_uep=root_uep,
                                           filters=filters, **kwargs)
-        self.subprojects = subprojects
+        self.data = ProjectGroup(self.root)
 
     def create_radar_data_group(self, where, name, description=None, title='',
                                 filters=_FILTER, createparents=True, obj=None,
@@ -51,7 +51,6 @@ class ProjectFile(tables.File):
         if obj:
             ptobj.append_dataframe(obj)
         return ptobj
-
 
     def create_radar_table(self, where, name, description=None, title='',
                      filters=_FILTER, expectedrows=1000000,
@@ -90,7 +89,6 @@ class ProjectFile(tables.File):
         if obj is not None:
             ptobj.append(obj)
 
-
     def create_table_schema(self, where, name, schema, createparents=True,
                             **kwargs):
         """ Create a new table based on a given schema TODO
@@ -99,7 +97,6 @@ class ProjectFile(tables.File):
         description = schemafunc(schema)
         self.create_radar_table(where, name, description=description,
                                 createparents=createparents, **kwargs)
-
 
     def save_dataframe(self, df, where, name, source_type='DATA', **kwargs):
         """Add a pandas dataframe to an entrypoint in the hdf5 file
@@ -110,21 +107,100 @@ class ProjectFile(tables.File):
         setattr(table._v_attrs, 'RADAR_TYPE', source_type)
         return table
 
+class ProjectGroup():
+    """
+    """
+    def __init__(self, hdf, **kwargs):
+        if isinstance(hdf, tables.link.ExternalLink):
+            hdf = hdf()
+        self._hdf = hdf
+
+        participants = kwargs.get('participants')
+        if participants is None:
+            self.participants = self.get_participants()
+        else:
+            self.participants = participants
+            self.participants.update(self.get_participants())
+
+        subprojects = kwargs.get('subprojects')
+        if subprojects is None:
+            self.subprojects = self.get_subprojects()
+        else:
+            self.subprojects = {name: self._hdf._f_get_child(name) for
+                                name in subprojects}
+            self.subprojects.update(self.get_subprojects())
+
+        self.name = kwargs['name'] if 'name' in kwargs else \
+            self._hdf._v_file.filename + self._hdf._v_pathname
+
+        self.parent = kwargs['parent'] if 'parent' in kwargs else None
+
+    def get_participants(self):
+        ptcs = AttrRecDict()
+        for name, child in self._hdf._v_children.items():
+            if isinstance(child, tables.link.Link):
+                child = child()
+            if not hasattr(child._v_attrs, 'RADAR_TYPE'):
+                continue
+            if child._v_attrs.RADAR_TYPE == 'SUBPROJECT':
+                ptcs[name] = AttrRecDict()
+            elif child._v_attrs.RADAR_TYPE == 'PARTICIPANT':
+                child.__class__ = ParticipantGroup
+                ptcs[name] = child
+        return ptcs
+
+    def get_subprojects(self):
+        sp = AttrRecDict()
+        for name, child in self._hdf._v_children.items():
+            if isinstance(child, tables.link.Link):
+                child = child()
+            if not hasattr(child._v_attrs, 'RADAR_TYPE'):
+                continue
+            if child._v_attrs.RADAR_TYPE == 'SUBPROJECT':
+                sp[name] = ProjectGroup(child, participants=self.participants[name],
+                                        name=name, parent=self)
+        return sp
+
+    def create_subproject(self, where, name):
+        pass
+
+    def create_participant(self, where, name):
+        pass
+
 
 class ParticipantGroup(tables.Group):
     """ A Pytables group object for use with RADAR participant data.
-    Currently a pure Pytables Group object, here in case there is use in the
-    future.
+    Exactly the same as a pytables Group, but has the method 'get_data_dict' to
+    get a dictionary of participant data groups/tables.
     """
-    pass
+    def __init__(self, *args, **kwargs):
+        super(ParticipantGroup, self).__init__(*args, **kwargs)
+        self._dict = get_data_dict()
+
+    def get_data_dict(self):
+        data_dict = ParticipantData()
+        for node in self._f_iter_nodes():
+            if isinstance(node, tables.link.Link):
+                node = node()
+            if isinstance(node, tables.group.Group):
+                node.__class__ = RadarDataGroup
+            elif isinstance(node, tables.table.Table):
+                node.__class__ = RadarTable
+            data_dict[node._v_name] = node
+        return data_dict
 
 
 class RadarTable(tables.Table):
     """ A Pytables table object for use with RADAR participant data.
     """
-    def append_dataframe(df, *args, **kwargs):
+    def append_dataframe(self, df, *args, **kwargs):
         df = _df_to_usable(df)
-        self.append(df)
+        self.append(df, *args, **kwargs)
+
+    def __getitem__(self, key):
+        df = super(RadarTable, self).__getitem__(key)
+        df = pd.DataFrame.from_records(df)
+        return df
 
 
 class RadarDataGroup(tables.Group):
@@ -320,111 +396,3 @@ def open_project_file(filename, mode='r', title='', root_uep='/',
                     'The file "{}" is already opened. Can\'t ',
                     'reopen in write mode', filename)
     return ProjectFile(filename, mode, title, root_uep, filters, **kwargs)
-
-
-def project_from_csvs(project_file, folder_path, subprojects=None,
-                      schemas=None, **kwargs):
-    """ Creates a RADAR project HDF5 file containing data from CSV files.
-    The filesystem folders should be organised as in the RADAR-CNS FTP, with a
-    project folder containing participant folders, which each contain data
-    source/modality folders with CSV files inside.
-    Subprojects may be specified if the top level directory does not
-    contain participants as child folders
-
-    Parameters
-    __________
-    project_file (required): str or radar.io.hdf5.ProjectFile
-        The HDF5 file to copy data in to.
-    folder_path (required): str
-        Path to the filesystem project directory
-    subprojects (optional): list or None
-        A list of subprojects to look for participants in. Paths relative to
-        folder_path.
-    specifications (optional): dict / radar.util.avro.ProjectSchemas
-        A dictionary containing schema names and the associated RadarSchema
-        object. Default uses default package specifications.
-    specs_only (optional): Bool
-        Whether to only load data from modalities with a known specification.
-        If False, the datatype will be inferred.
-        Default is True
-    participant_subfolders (optional): Bool
-        Whether to recreate the heirarchy of folders underneath each
-        participant. Default is False.
-    custom_subfolder (optional): str
-        An optional folder under which to put all participant data modalities.
-        Default is '' (No subfolder)
-
-    Returns
-    _______
-    Project: radar.wrappers.Project
-        A RADAR project wrapper around the new HDF5 file.
-    """
-    def create_participants(subproject_relpath):
-        sp_dir = os.path.join(folder_path, subproject_relpath)
-        for ptc in participant_dirs(sp_dir):
-            participant_from_csvs(project_file=project_file,
-                                  where=subproject_relpath,
-                                  name=ptc,
-                                  folder_path=os.path.join(sp_dir, ptc),
-                                  **kwargs)
-
-
-    def participant_dirs(path):
-        return [f for f in os.listdir(path) if
-                os.path.isdir(os.path.join(path, f))]
-
-    if isinstance(project_file, str):
-        project_file = open_project_file(project_file, 'a')
-    if subprojects is None:
-        subprojects = []
-        create_participants('')
-
-    for sp in subprojects:
-        print(sp)
-        where, name = os.path.split(sp)
-        sp_hdf = project_file.create_group(where, name)
-        setattr(sp_hdf._v_attrs, 'RADAR_TYPE', 'SUBPROJECT')
-        create_participants(sp)
-
-    return project_file
-
-
-def participant_from_csvs(project_file, where, name, folder_path,
-                          participant_subfolders=False, custom_subfolder=''):
-    ptc_hdf = project_file.create_group(where, name)
-    folders = set([os.path.split(f)[0] for f in
-                   glob.glob(folder_path+'/**/*.csv', recursive=True)])
-
-
-
-def _descr_from_spec(modality_spec):
-    """ Generates a table description from a RADAR schema.
-    Parameters
-    _________
-    modality_spec : RadarSpec object
-        A RadarSpec object from radar.util.specifications
-
-    Returns
-    _______
-    : tables.Description object
-        A PyTables Description object generated from the given schema
-
-    See Also
-    ________
-    tables.Description : The PyTables object that describes a HDF5 table.
-    """
-    raise NotImplementedError('TODO: make dict')
-
-
-def _df_to_usable(df, converters=NP_HDF_CONVERTERS):
-    if type(df.index) is not pd.RangeIndex:
-        rec = df.to_records()
-    else:
-        rec = df.to_records(index=False)
-
-    dtypes = []
-    for name, dt in rec.dtype.descr:
-        dtypes.append(converters[dt](rec[name])) if dt in converters \
-                else dtypes.append(dt)
-
-    return np.rec.fromrecords(rec, formats=dtypes, names=rec.dtype.names)

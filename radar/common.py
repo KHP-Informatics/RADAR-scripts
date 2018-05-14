@@ -87,6 +87,14 @@ class AttrRecDict(RecursiveDict):
         return repr_string
 
 
+class ParticipantData(dict):
+    def __repr__(self):
+        return 'Participant data tables:\n' + ', '.join(list(self.keys()))
+
+    def available(self):
+        print(self.__repr__())
+
+
 def obj_col_names(obj):
     """ Returns a list of column names from a numpy record array or pandas
     dataframe
