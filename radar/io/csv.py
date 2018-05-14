@@ -7,8 +7,29 @@ from ..defaults import TIME_COLS
 from ..util.specifications import ModalitySpec
 from ..util.avro import RadarSchema
 
-def date_parser(timestamp):
-    return pd.Timestamp(float(timestamp))
+class CsvProjectFolder(object):
+    """ Top level folder of CSV project directory
+    """
+    def __init__(self, filename, mode='r', title='',
+                 compression, *args, **kwargs):
+        pass
+
+
+class CsvProjectGroup():
+    pass
+
+
+class CsvParticipantGroup():
+    pass
+
+
+class CsvTable():
+    pass
+
+
+class CsvDataGroup():
+    pass
+
 
 def write_csv(arr, fname: str = '', fieldnames: list = None, **kwargs):
     f = open(fname, 'w') if fname else sys.stdout
