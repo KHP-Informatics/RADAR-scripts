@@ -23,6 +23,16 @@ class RecursiveDict(dict):
         else:
             return dict.__getitem__(self, key)
 
+    def __setitem__(self, key, value):
+        key_split = key.split('/')
+        key = key_split.pop(0)
+        if key == '':
+            return KeyError('')
+        if key_split:
+            self[key].__setitem__(self, key, value)
+        else:
+            dict.__setitem__(self, key, value)
+
     def _get_x(self, xattr):
         out = []
         for x, v in zip(getattr(self, xattr)(), self.values()):
@@ -162,3 +172,8 @@ def progress_bar(progress, total, prefix='Progress: ', suffix='', length=50):
     print(bar, end='\r')
     if progress >= total:
         print('')
+
+def date_parser(timestamp):
+    return pd.Timestamp(float(timestamp))
+
+

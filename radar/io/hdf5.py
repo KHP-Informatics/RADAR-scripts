@@ -116,12 +116,9 @@ class ProjectGroup():
         self._hdf = hdf
 
         participants = kwargs.get('participants')
-        if participants is None:
-            self.participants = self.get_participants()
-        else:
-            self.participants = participants
-            self.participants.update(self.get_participants())
-
+        self.participants = AttrRecDict() if participants is None else \
+                            participants
+        self.participants.update(self.get_participants())
         subprojects = kwargs.get('subprojects')
         if subprojects is None:
             self.subprojects = self.get_subprojects()
@@ -129,7 +126,6 @@ class ProjectGroup():
             self.subprojects = {name: self._hdf._f_get_child(name) for
                                 name in subprojects}
             self.subprojects.update(self.get_subprojects())
-
         self.name = kwargs['name'] if 'name' in kwargs else \
             self._hdf._v_file.filename + self._hdf._v_pathname
 

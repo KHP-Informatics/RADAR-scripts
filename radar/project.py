@@ -3,21 +3,29 @@ import os
 import glob
 from . import visualise
 from .common import AttrRecDict, progress_bar
-from .io.hdf5 import ProjectFile, RadarDataGroup, open_project_file
-from .io.csv import read_folder
+from .io.hdf5 import open_project_file as h5_project
 from .util.specifications import ProjectSpecs
 from .util.avro import ProjectSchemas
 
 class Project():
-
-    def from_h5(self, h5_path, *args, **kwargs):
-        pass
-
-    def from_csvs(self, folder_path, *args, **kwargs):
-        pass
+    """
+    """
+    def __init__(self, proj_data=None, **kwargs):
+        self.name = kwargs['name'] if 'name' in kwargs else proj_data.name
+        self.parent = kwargs['parent'] if 'parent' in kwargs else None
+        self._data = [proj_data] if proj_data is not None else []
+        self.subprojects = AttrRecDict()
+        self.participants = self.parent.participants[self.name] if self.parent\
+                        else AttrRecDict()
+        if self._data:
+            self._get_subprojects(self._data[0].subprojects)
+            self._get_participants(self._data[0].participants)
 
     def load_h5(self, h5_path, *args, **kwargs):
-        pass
+        data = h5_project(h5_path, *args, **kwargs).data
+        self._get_subprojects(data.subprojects)
+        self._get_participants(data.participants)
+        self._data.append(data)
 
     def load_csvs(self, folder_path, *args, **kwargs):
         pass
@@ -49,17 +57,6 @@ class Project():
         proj.participants[name] = AttrRecDict()
         proj.subprojects[name] = Project(data, name=name, parent=self)
         return proj.subprojects[name]
-
-    def __init__(self, proj_data=None, **kwargs):
-        self.name = kwargs['name'] if 'name' in kwargs else proj_data.name
-        self.parent = kwargs['parent'] if 'parent' in kwargs else None
-        self._data = [proj_data] if proj_data is not None else []
-        self.subprojects = AttrRecDict()
-        self.participants = self.parent.participants[self.name] if self.parent \
-                        else AttrRecDict()
-        if self._data :
-            self._get_subprojects(proj_data.subprojects)
-            self._get_participants(proj_data.participants)
 
     def __str__(self):
         return 'RADAR {}: {}, {} participants'.format(
@@ -101,6 +98,7 @@ class Participant():
 
     def plot_time_span(self, source, timespan, ycols,
                        xcol='value.time', fig=None, events=None):
+        print('To be deprecated')
         df = self.df_from_data(source, ycols.append(xcol))
         df.set_index(xcol)
         fig = visualise.interactive.time_span(
@@ -108,3 +106,12 @@ class Participant():
         if events != None:
             visualise.interactive.add_events(fig, events)
         return fig
+
+
+def from_h5(h5_path, name=None, *args, **kwargs):
+    proj = Project(name=name if name else h5_path)
+    proj.load_h5(h5_path, *args, **kwargs)
+    return proj
+
+def from_csvs(self, folder_path, *args, **kwargs):
+    pass
