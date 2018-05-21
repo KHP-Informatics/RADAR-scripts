@@ -3,8 +3,9 @@ import os
 import tables
 import numpy as np
 import pandas as pd
-from ..common import obj_col_names, progress_bar, AttrRecDict, ParticipantData
+from ..common import obj_col_names, progress_bar, AttrRecDict
 from ..defaults import _FILTER
+from .generic import ParticipantData
 
 SPEC_HDF_TYPE = {
     'TIMESTAMP': tables.Int64Col(),
@@ -115,35 +116,20 @@ class ProjectGroup():
             hdf = hdf()
         self._hdf = hdf
 
+        subprojects = kwargs.get('subprojects')
+        self.subprojects = {} if subprojects is None else subprojects
+
         participants = kwargs.get('participants')
         self.participants = AttrRecDict() if participants is None else \
                             participants
+
+        self.subprojects.update(self.get_subprojects())
         self.participants.update(self.get_participants())
-        subprojects = kwargs.get('subprojects')
-        if subprojects is None:
-            self.subprojects = self.get_subprojects()
-        else:
-            self.subprojects = {name: self._hdf._f_get_child(name) for
-                                name in subprojects}
-            self.subprojects.update(self.get_subprojects())
+
         self.name = kwargs['name'] if 'name' in kwargs else \
-            self._hdf._v_file.filename + self._hdf._v_pathname
+                    self._hdf._v_file.filename + self._hdf._v_pathname
 
         self.parent = kwargs['parent'] if 'parent' in kwargs else None
-
-    def get_participants(self):
-        ptcs = AttrRecDict()
-        for name, child in self._hdf._v_children.items():
-            if isinstance(child, tables.link.Link):
-                child = child()
-            if not hasattr(child._v_attrs, 'RADAR_TYPE'):
-                continue
-            if child._v_attrs.RADAR_TYPE == 'SUBPROJECT':
-                ptcs[name] = AttrRecDict()
-            elif child._v_attrs.RADAR_TYPE == 'PARTICIPANT':
-                child.__class__ = ParticipantGroup
-                ptcs[name] = child
-        return ptcs
 
     def get_subprojects(self):
         sp = AttrRecDict()
@@ -153,9 +139,22 @@ class ProjectGroup():
             if not hasattr(child._v_attrs, 'RADAR_TYPE'):
                 continue
             if child._v_attrs.RADAR_TYPE == 'SUBPROJECT':
+                self.participants[name] = AttrRecDict()
                 sp[name] = ProjectGroup(child, participants=self.participants[name],
                                         name=name, parent=self)
         return sp
+
+    def get_participants(self):
+        ptcs = AttrRecDict()
+        for name, child in self._hdf._v_children.items():
+            if isinstance(child, tables.link.Link):
+                child = child()
+            if not hasattr(child._v_attrs, 'RADAR_TYPE'):
+                continue
+            if child._v_attrs.RADAR_TYPE == 'PARTICIPANT':
+                child.__class__ = ParticipantGroup
+                ptcs[name] = child
+        return ptcs
 
     def create_subproject(self, where, name):
         pass

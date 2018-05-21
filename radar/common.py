@@ -1,5 +1,4 @@
 import numpy as np
-import tables
 
 class RecursiveDict(dict):
     """ A dictionary that can directly access items from nested dictionaries
@@ -95,14 +94,6 @@ class AttrRecDict(RecursiveDict):
                            len(self),
                            ', '.join(list(self.keys())))
         return repr_string
-
-
-class ParticipantData(dict):
-    def __repr__(self):
-        return 'Participant data tables:\n' + ', '.join(list(self.keys()))
-
-    def available(self):
-        print(self.__repr__())
 
 
 def obj_col_names(obj):

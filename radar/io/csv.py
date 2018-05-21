@@ -1,31 +1,23 @@
 #!/usr/bin/env python3
 import pandas as pd
-import numpy as np
+import dask.dataframe as dd
 import glob, os, sys
 import csv
 from ..defaults import TIME_COLS
 from ..util.specifications import ModalitySpec
 from ..util.avro import RadarSchema
-
-class CsvProjectFolder(object):
-    """ Top level folder of CSV project directory
-    """
-    def __init__(self, filename, mode='r', title='',
-                 compression, *args, **kwargs):
-        pass
+from .generic import RadarTable
 
 
-class CsvProjectGroup():
-    pass
-
-
-class CsvParticipantGroup():
-    pass
-
-
-class CsvTable():
-    pass
-
+class CsvTable(RadarTable):
+    def _make_dask_df(self, where, name, compression=None):
+        folder = os.path.join(where, name)
+        if compression is None:
+            return dd.read_csv(os.path.join(folder, '*.csv'))
+        else:
+            return dd.read_csv(os.path.join(folder, '*.csv.*'),
+                               compression=compression,
+                               blocksize=None)
 
 class CsvDataGroup():
     pass
