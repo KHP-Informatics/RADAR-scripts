@@ -3,7 +3,7 @@ import glob
 from collections import Counter
 from ..common import AttrRecDict
 from .csv import CsvTable
-from .generic import Project, Participant, ParticipantData
+from .generic import ProjectIO, ParticipantIO, ParticipantData
 
 """
 File system project IO.
@@ -11,7 +11,7 @@ Project and participant objects for getting data in the standard filesystem
 folder heirarchy (as apposed to within a hdf5 file).
 """
 
-class ProjectFolder(Project):
+class ProjectFolder(ProjectIO):
     def __init__(self, path, mode='a', subprojects=None, **kwargs):
         """
         """
@@ -66,8 +66,7 @@ class ProjectFolder(Project):
         return ptcs
 
 
-class ParticipantFolder(Participant):
-
+class ParticipantFolder(ParticipantIO):
     def __init__(self, folder_path, *args, **kwargs):
         self._data_funcs = {
             'csv': self._load_csv,
@@ -78,8 +77,13 @@ class ParticipantFolder(Participant):
         self.name = kwargs.get('name')
         if self.name is None:
             self.name = os.path.split[folder_path][1]
-        self.data = self.get_data_dict(kwargs.get('filetypes'),
-                                       kwargs.get('subdirs'))
+        self._filetypes = kwargs.get('filetypes')
+        if self._filetypes is None:
+            self._filetypes = list(self._data_funcs)
+        self._subdirs = kwargs.get('subdirs')
+        if self._subdirs is None:
+            self._subdirs = []
+        self.data = self.get_data_dict()
         self.info = {}
 
     def get_data_dict(self, filetypes=None, subdirs=None, **kwargs):
@@ -147,7 +151,10 @@ class ParticipantFolder(Participant):
             return max(extensions, key=count.get)
 
         if filetypes is None:
-            filetypes = list(self._data_funcs)
+            filetypes = self._filetypes
+        if subdirs is None:
+            subdirs = self._subdirs
+
         return get_modalities(where=self.path,
                               names=get_folders(self.path, subdirs),
                               filetypes=filetypes,
@@ -187,3 +194,5 @@ def listfiles(path=None):
     """
     return listdir_conditional(path, os.path.isfile)
 
+def open_project_folder(folder, *args, **kwargs):
+    return ProjectFolder(folder, *args, **kwargs)

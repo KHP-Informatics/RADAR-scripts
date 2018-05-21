@@ -3,6 +3,7 @@ import os
 import glob
 from . import visualise
 from .common import AttrRecDict, progress_bar
+from .io.fs import open_project_folder as fs_project
 from .io.hdf5 import open_project_file as h5_project
 from .util.specifications import ProjectSpecs
 from .util.avro import ProjectSchemas
@@ -27,14 +28,17 @@ class Project():
         self._get_participants(data.participants)
         self._data.append(data)
 
-    def load_csvs(self, folder_path, *args, **kwargs):
-        pass
+    def load_fs(self, folder_path, *args, **kwargs):
+        data = fs_project(folder_path, *args, **kwargs)
+        self._get_subprojects(data.subprojects)
+        self._get_participants(data.participants)
+        self._data.append(data)
 
     def to_h5(self, h5_path, *args, **kwargs):
-        pass
+        raise NotImplementedError
 
     def to_csvs(self, folder_path, *args, **kwargs):
-        pass
+        raise NotImplementedError
 
     def _get_subprojects(self, subproject_data_dict):
         for sp_name, sp_data in subproject_data_dict.items():
@@ -113,5 +117,7 @@ def from_h5(h5_path, name=None, *args, **kwargs):
     proj.load_h5(h5_path, *args, **kwargs)
     return proj
 
-def from_csvs(self, folder_path, *args, **kwargs):
-    pass
+def from_fs(folder_path, name=None, *args, **kwargs):
+    proj = Project(name=name if name else folder_path)
+    proj.load_fs(folder_path, *args, **kwargs)
+    return proj

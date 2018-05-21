@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import os
 
-class Project():
+class ProjectIO():
     pass
 
 
-class Participant():
+class ParticipantIO():
     pass
 
 
