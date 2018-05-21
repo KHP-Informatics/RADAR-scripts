@@ -31,7 +31,6 @@ class ProjectFolder(ProjectIO):
             ptckw = {}
         self.participants.update(self.get_participants(**ptckw))
 
-
     def get_subprojects(self, subproject_names, **kwargs):
         sp = AttrRecDict()
         for path in subproject_names:

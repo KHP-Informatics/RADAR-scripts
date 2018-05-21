@@ -22,6 +22,14 @@ class Project():
             self._get_subprojects(self._data[0].subprojects)
             self._get_participants(self._data[0].participants)
 
+    def __getitem__(self, key):
+        if key in self.subprojects:
+            return self.subprojects[key]
+        elif hasattr(self.participants, key):
+            return getattr(self.participants, key)
+        else:
+            raise KeyError('No such subproject or participant: {}'.format(key))
+
     def load_h5(self, h5_path, *args, **kwargs):
         data = h5_project(h5_path, *args, **kwargs).data
         self._get_subprojects(data.subprojects)
